@@ -137,7 +137,7 @@ export default function ExpandedPlayer(props: Props) {
         </div>
 
         {/* Body */}
-        <div className="expanded-body">
+        <div className={`expanded-body ${tab !== 'queue' ? 'compact-art' : ''}`}>
           {/* Left: art + info */}
           <div className="expanded-art-col">
             <img src={track.thumbnail} alt={track.title} />
