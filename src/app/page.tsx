@@ -6,6 +6,7 @@ import {
 } from '@/lib/store';
 import { extractColor } from '@/lib/colorExtract';
 
+import Welcome from '@/components/Welcome';
 import ProfileSelect from '@/components/ProfileSelect';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
@@ -17,12 +18,21 @@ import Library from '@/components/Library';
 import Queue from '@/components/Queue';
 import Player from '@/components/Player';
 import ExpandedPlayer from '@/components/ExpandedPlayer';
+import Credits from '@/components/Credits';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
 interface PlayerControl { seekTo: (s: number) => void; setVolume: (v: number) => void; pause: () => void; play: () => void }
 
 export default function App() {
+  // ── First-visit welcome screen ────────────────
+  const [welcomeChecked, setWelcomeChecked] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    setShowWelcome(!localStorage.getItem('mkmusic_welcomed'));
+    setWelcomeChecked(true);
+  }, []);
+
   // ── Profiles ─────────────────────────────────
   // No auto-restore across reloads by design: PIN is required every time a profile is selected.
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
@@ -40,6 +50,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showExpanded, setShowExpanded] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -196,6 +207,11 @@ export default function App() {
     if (q) setActiveTab('search');
   }
 
+  if (!welcomeChecked) return null;
+  if (showWelcome) {
+    return <Welcome onStart={() => { localStorage.setItem('mkmusic_welcomed', '1'); setShowWelcome(false); }} />;
+  }
+
   // Show profile select screen
   if (!activeProfile) {
     return <ProfileSelect onSelect={handleProfileSelect} />;
@@ -220,6 +236,7 @@ export default function App() {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
           onSwitchProfile={() => setActiveProfile(null)}
+          onShowCredits={() => setShowCredits(true)}
         />
 
         {/* TopBar */}
@@ -317,6 +334,8 @@ export default function App() {
           onProfileChange={handleProfileChange}
         />
       </div>
+
+      {showCredits && <Credits onClose={() => setShowCredits(false)} />}
 
       {/* Mobile Bottom Nav */}
       <BottomNav activeTab={activeTab} onChange={setActiveTab} />

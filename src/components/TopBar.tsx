@@ -54,10 +54,6 @@ export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchCh
 
       {/* Right actions */}
       <div className="topbar-right">
-        <div className="supabase-badge" title="Supabase Connected">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="#3ecf8e"><path d="M21.362 9.354H12V.301L2.638 14.646H12v9.053l9.362-14.345z"/></svg>
-          <span className="supabase-badge-text">Supabase Active</span>
-        </div>
         <button className="icon-btn" title="Jelajahi" onClick={() => onTabChange('discover')}>
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/>

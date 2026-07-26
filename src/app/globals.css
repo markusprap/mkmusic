@@ -280,13 +280,6 @@ input[type=range].vol-slider,input[type=range].exp-vol-slider{background:linear-
 .expanded-vol-row{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .exp-vol-slider{width:100px}
 
-/* ── Supabase Badge ────────────────────── */
-.supabase-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(62,207,142,.12);color:#3ecf8e;border:1px solid rgba(62,207,142,.3);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
-@media(max-width:600px){
-  .supabase-badge-text{display:none}
-  .supabase-badge{padding:6px;border-radius:50%}
-}
-
 /* ── Bottom Nav (Mobile) ───────────────── */
 .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:#121212;border-top:1px solid rgba(255,255,255,.08);z-index:110}
 .bottom-nav-items{display:flex;width:100%;height:100%;align-items:center}

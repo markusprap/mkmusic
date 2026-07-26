@@ -1,5 +1,5 @@
 'use client';
-import { Track, Profile, toggleLike, createPlaylist, addToPlaylist } from '@/lib/store';
+import { Track, Profile, toggleLike } from '@/lib/store';
 import { useEffect, useRef, useState } from 'react';
 import TrackMenu from './TrackMenu';
 
@@ -39,7 +39,6 @@ function fmtTime(s: number) {
 export default function ExpandedPlayer(props: Props) {
   const { track, queue, currentIndex, profile, isPlaying, shuffle, repeat, currentTime, duration, volume, dynamicRgb, onClose } = props;
   const [tab, setTab] = useState<ExpTab>('queue');
-  const [showMenu, setShowMenu] = useState(false);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const activeLyricRef = useRef<HTMLDivElement>(null);
@@ -50,19 +49,6 @@ export default function ExpandedPlayer(props: Props) {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const liked = (profile?.likedIds || []).includes(track.id);
-
-  function handleAddToPlaylist(playlistId: string) {
-    props.onProfileChange(addToPlaylist(profile, playlistId, track.id));
-    setShowMenu(false);
-  }
-
-  function handleNewPlaylist() {
-    const name = window.prompt('Nama playlist baru:');
-    setShowMenu(false);
-    if (!name || !name.trim()) return;
-    const { profile: withPlaylist, playlist } = createPlaylist(profile, name.trim());
-    props.onProfileChange(addToPlaylist(withPlaylist, playlist.id, track.id));
-  }
 
   const [isSynced, setIsSynced] = useState(false);
 
@@ -147,26 +133,7 @@ export default function ExpandedPlayer(props: Props) {
             </svg>
           </button>
           <span className="expanded-source">Memutar dari Antrian</span>
-          <div style={{position:'relative'}}>
-            <button className="icon-btn" onClick={() => setShowMenu(m => !m)} title="Opsi lagu">
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-              </svg>
-            </button>
-            {showMenu && (
-              <>
-                <div style={{position:'fixed',inset:0,zIndex:399}} onClick={() => setShowMenu(false)} />
-                <div className="ctx-menu" style={{position:'absolute',top:'calc(100% + 8px)',right:0,left:'auto'}}>
-                  <div className="ctx-item" style={{opacity:.6,cursor:'default'}}>Tambah ke playlist</div>
-                  {(profile?.playlists || []).map(pl => (
-                    <div key={pl.id} className="ctx-item" onClick={() => handleAddToPlaylist(pl.id)}>{pl.name}</div>
-                  ))}
-                  <div className="ctx-divider" />
-                  <div className="ctx-item" onClick={handleNewPlaylist}>+ Playlist Baru</div>
-                </div>
-              </>
-            )}
-          </div>
+          <TrackMenu profile={profile} track={track} onProfileChange={props.onProfileChange} />
         </div>
 
         {/* Body */}
@@ -248,14 +215,6 @@ export default function ExpandedPlayer(props: Props) {
 
         {/* Controls */}
         <div className="expanded-controls">
-          <div className="expanded-seek-row">
-            <span className="seek-time">{fmtTime(currentTime)}</span>
-            <input type="range" min={0} max={duration||100} value={currentTime}
-              className="seek-bar expanded-seek-bar"
-              style={{'--p':`${progress}%`} as React.CSSProperties}
-              onChange={e => props.onSeek(Number(e.target.value))} />
-            <span className="seek-time">{fmtTime(duration)}</span>
-          </div>
           <div className="expanded-ctrl-row">
             <button className={`icon-btn ${shuffle?'active':''}`} onClick={props.onShuffle} title="Acak">
               <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -278,6 +237,14 @@ export default function ExpandedPlayer(props: Props) {
             <button className={`icon-btn ${repeat!=='off'?'active':''}`} onClick={props.onRepeat} title="Ulangi">
               <RepeatIcon />
             </button>
+          </div>
+          <div className="expanded-seek-row">
+            <span className="seek-time">{fmtTime(currentTime)}</span>
+            <input type="range" min={0} max={duration||100} value={currentTime}
+              className="seek-bar expanded-seek-bar"
+              style={{'--p':`${progress}%`} as React.CSSProperties}
+              onChange={e => props.onSeek(Number(e.target.value))} />
+            <span className="seek-time">{fmtTime(duration)}</span>
           </div>
           <div className="expanded-vol-row">
             <button className="icon-btn">

@@ -12,9 +12,10 @@ interface Props {
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onSwitchProfile: () => void;
+  onShowCredits: () => void;
 }
 
-export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile }: Props) {
+export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits }: Props) {
   const recentIds = profile?.recentIds || [];
   const likedIds = profile?.likedIds || [];
   const playlists = profile?.playlists || [];
@@ -121,6 +122,9 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
             <div className="profile-sub">Ganti profil</div>
           </div>
         </div>
+        <button className="lib-item" style={{width:'100%',color:'var(--text-2)',fontSize:12,fontWeight:600,justifyContent:'center'}} onClick={onShowCredits}>
+          Credits & Donasi
+        </button>
       </div>
     </nav>
   );
