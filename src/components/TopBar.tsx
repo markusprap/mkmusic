@@ -1,5 +1,6 @@
 'use client';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { Profile } from '@/lib/store';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -9,10 +10,14 @@ interface Props {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSearchSubmit: () => void;
+  profile: Profile;
+  onSwitchProfile: () => void;
+  onShowCredits: () => void;
 }
 
-export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchChange, onSearchSubmit }: Props) {
+export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchChange, onSearchSubmit, profile, onSwitchProfile, onShowCredits }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter') onSearchSubmit();
@@ -59,6 +64,21 @@ export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchCh
             <circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/>
           </svg>
         </button>
+        <div style={{position:'relative'}}>
+          <button onClick={() => setShowMenu(m => !m)} title={profile.name}
+            style={{width:32,height:32,borderRadius:'50%',background:profile.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>
+            {profile.avatar}
+          </button>
+          {showMenu && (
+            <>
+              <div style={{position:'fixed',inset:0,zIndex:399}} onClick={() => setShowMenu(false)} />
+              <div className="ctx-menu" style={{position:'absolute',top:'calc(100% + 8px)',right:0,left:'auto'}}>
+                <div className="ctx-item" onClick={() => { setShowMenu(false); onSwitchProfile(); }}>Ganti Profil</div>
+                <div className="ctx-item" onClick={() => { setShowMenu(false); onShowCredits(); }}>Credits & Donasi</div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -246,6 +246,9 @@ export default function App() {
           searchQuery={searchQuery}
           onSearchChange={handleSearchQuery}
           onSearchSubmit={handleSearchSubmit}
+          profile={activeProfile}
+          onSwitchProfile={() => setActiveProfile(null)}
+          onShowCredits={() => setShowCredits(true)}
         />
 
         {/* Main content */}
