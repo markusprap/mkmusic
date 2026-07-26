@@ -130,6 +130,30 @@ export default function Player(props: Props) {
     try { ytPlayerRef.current?.setVolume?.(volume); } catch { /* ignore */ }
   }, [volume]);
 
+  // Media Session: lock-screen/notification controls, and signals the browser
+  // this tab is actively playing media so it's not suspended in the background.
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !track) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: track.artist,
+      artwork: [{ src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' }],
+    });
+    navigator.mediaSession.setActionHandler('play', props.onPlayPause);
+    navigator.mediaSession.setActionHandler('pause', props.onPlayPause);
+    navigator.mediaSession.setActionHandler('previoustrack', props.onPrev);
+    navigator.mediaSession.setActionHandler('nexttrack', props.onNext);
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime != null) props.onSeek(details.seekTime);
+    });
+  }, [track?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
+
   // Time tracking
   useEffect(() => {
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
