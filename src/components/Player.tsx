@@ -1,6 +1,13 @@
 'use client';
 import { Track, Profile, toggleLike } from '@/lib/store';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
 
 interface PlayerRef {
   seekTo: (s: number) => void;
@@ -45,53 +52,80 @@ function fmtTime(s: number) {
 
 export default function Player(props: Props) {
   const { track, isPlaying, shuffle, repeat, volume, currentTime, duration } = props;
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const ytPlayerRef = useRef<any>(null);
+  const iframeContainerRef = useRef<HTMLDivElement>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [ytReady, setYtReady] = useState(false);
 
-  // Keep latest onTrackEnd callback in ref to prevent stale closure bugs in the 'ended' listener
+  // Keep latest onTrackEnd callback in ref to prevent stale closure bugs in YT event handler
   const onTrackEndRef = useRef(props.onTrackEnd);
   useEffect(() => {
     onTrackEndRef.current = props.onTrackEnd;
   }, [props.onTrackEnd]);
 
-  // Expose controls via ref (used by ExpandedPlayer / page.tsx)
+  // Load YT iFrame API once
   useEffect(() => {
-    props.playerRef.current = {
-      seekTo: (s) => { if (audioRef.current) audioRef.current.currentTime = s; },
-      setVolume: (v) => { if (audioRef.current) audioRef.current.volume = v / 100; },
-      pause: () => audioRef.current?.pause(),
-      play: () => { audioRef.current?.play().catch(() => {}); },
-    };
-  }, []); // eslint-disable-line
+    if (window.YT?.Player) { setYtReady(true); return; }
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = () => setYtReady(true);
+  }, []);
 
-  // Load new track: fetch a direct playable stream URL, then assign as src.
-  // Native <audio> playback (vs. the old cross-origin YT iframe) lets the
-  // browser correctly attribute audio to this page for Media Session and
-  // background-tab audio continuation.
+  // Initialize YT player when API is ready
   useEffect(() => {
-    if (!track || !audioRef.current) return;
-    let cancelled = false;
-    fetch(`/api/audio?videoId=${track.id}`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled || !audioRef.current || !data.url) return;
-        audioRef.current.src = data.url;
-        if (isPlaying) audioRef.current.play().catch(() => {});
-      })
-      .catch(err => console.error('[mkmusic] stream fetch error:', err));
-    return () => { cancelled = true; };
+    if (!ytReady || !iframeContainerRef.current || ytPlayerRef.current) return;
+    ytPlayerRef.current = new window.YT.Player(iframeContainerRef.current, {
+      height: '1',
+      width: '1',
+      playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1 },
+      events: {
+        onStateChange: (e: any) => {
+          // YT.PlayerState.ENDED === 0
+          if (e.data === 0) {
+            console.log('[mkmusic] Track ended, calling onTrackEnd');
+            onTrackEndRef.current();
+          }
+        },
+      },
+    });
+
+    // Expose controls via ref
+    props.playerRef.current = {
+      seekTo: (s) => ytPlayerRef.current?.seekTo?.(s, true),
+      setVolume: (v) => ytPlayerRef.current?.setVolume?.(v),
+      pause: () => ytPlayerRef.current?.pauseVideo?.(),
+      play: () => ytPlayerRef.current?.playVideo?.(),
+    };
+  }, [ytReady]); // eslint-disable-line
+
+  // Load new video when track changes. loadVideoById() autoplays on its own
+  // per the YT IFrame API — no extra delayed playVideo() call needed, and
+  // one fired via setTimeout would be disconnected from the tap's gesture
+  // context, which mobile browsers are more likely to block.
+  useEffect(() => {
+    if (!track || !ytPlayerRef.current) return;
+    try {
+      if (typeof ytPlayerRef.current.loadVideoById === 'function') {
+        ytPlayerRef.current.loadVideoById(track.id);
+      }
+    } catch (err) {
+      console.error('[mkmusic] loadVideoById error:', err);
+    }
   }, [track?.id]); // eslint-disable-line
 
   // Sync play/pause
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !audio.src) return;
-    if (isPlaying) audio.play().catch(() => {});
-    else audio.pause();
+    if (!ytPlayerRef.current) return;
+    try {
+      if (isPlaying) ytPlayerRef.current.playVideo?.();
+      else ytPlayerRef.current.pauseVideo?.();
+    } catch { /* ignore */ }
   }, [isPlaying]);
 
-  // Volume sync (HTML audio volume is 0-1, app volume is 0-100)
+  // Volume sync
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume / 100;
+    try { ytPlayerRef.current?.setVolume?.(volume); } catch { /* ignore */ }
   }, [volume]);
 
   // Media Session: lock-screen/notification controls, and signals the browser
@@ -126,32 +160,43 @@ export default function Player(props: Props) {
     }
   }, [isPlaying]);
 
-  // Time tracking — native events, no manual polling needed.
+  // Time tracking
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const handleTimeUpdate = () => props.onTimeUpdate(audio.currentTime, audio.duration || 0);
-    const handleEnded = () => onTrackEndRef.current();
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-    };
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      if (!ytPlayerRef.current) return;
+      try {
+        const cur = ytPlayerRef.current.getCurrentTime?.() ?? 0;
+        const dur = ytPlayerRef.current.getDuration?.() ?? 0;
+        props.onTimeUpdate(cur, dur);
+      } catch { /* ignore */ }
+    }, 500);
+    return () => { if (progressIntervalRef.current) clearInterval(progressIntervalRef.current); };
   }, []); // eslint-disable-line
 
   const handleSeek = useCallback((s: number) => {
-    if (audioRef.current) audioRef.current.currentTime = s;
+    try { ytPlayerRef.current?.seekTo?.(s, true); } catch { /* ignore */ }
     props.onSeek(s);
   }, []); // eslint-disable-line
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const liked = track ? (props.profile?.likedIds || []).includes(track.id) : false;
 
+  const iframeStyle: React.CSSProperties = {
+    position: 'fixed',
+    width: '1px',
+    height: '1px',
+    left: '-9999px',
+    top: '-9999px',
+    opacity: 0.01,
+    pointerEvents: 'none',
+  };
+
   if (!track) {
     return (
       <footer className="player-bar">
-        <audio ref={audioRef} style={{ display: 'none' }} />
+        {/* Hidden YT iframe with non-zero dimensions to avoid browser throttling */}
+        <div style={iframeStyle}><div ref={iframeContainerRef} /></div>
         <div className="player-left" style={{gap:12}}>
           <div style={{width:56,height:56,borderRadius:4,background:'#282828',flexShrink:0}} />
           <div>
@@ -180,7 +225,8 @@ export default function Player(props: Props) {
 
   return (
     <footer className="player-bar">
-      <audio ref={audioRef} style={{ display: 'none' }} />
+      {/* Hidden YT iFrame */}
+      <div style={iframeStyle}><div ref={iframeContainerRef} /></div>
 
       {/* LEFT: track info */}
       <div className="player-left">
