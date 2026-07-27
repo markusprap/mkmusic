@@ -160,10 +160,26 @@ export default function App() {
     setTimeout(() => { applyingRemoteRef.current = false; }, 0);
   }
 
+  // Pushes local playback state to the room row. Also marks the update as
+  // "ours" for a short window so the realtime echo of our own write doesn't
+  // get re-applied — that was causing an unwanted seekTo() (audible stutter)
+  // on every play/pause/seek/skip while in a room.
+  async function pushRoomState(overrides?: Partial<{ queue: Track[]; currentIndex: number; isPlaying: boolean; positionSeconds: number }>) {
+    if (!activeRoom) return;
+    applyingRemoteRef.current = true;
+    await syncRoomRemote(activeRoom.id, {
+      queue: overrides?.queue ?? queue,
+      currentIndex: overrides?.currentIndex ?? currentIndex,
+      isPlaying: overrides?.isPlaying ?? isPlaying,
+      positionSeconds: overrides?.positionSeconds ?? currentTime,
+    }).catch(() => {});
+    setTimeout(() => { applyingRemoteRef.current = false; }, 500);
+  }
+
   // ── Room sync: push local playback changes to the room row ──
   useEffect(() => {
     if (!activeRoom || applyingRemoteRef.current) return;
-    syncRoomRemote(activeRoom.id, { queue, currentIndex, isPlaying, positionSeconds: currentTime }).catch(() => {});
+    pushRoomState();
     // currentTime intentionally excluded — synced explicitly on seek, not every tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoom?.id, queue, currentIndex, isPlaying]);
@@ -174,6 +190,7 @@ export default function App() {
     const supabase = createClient();
     const channel = supabase.channel(`room-${activeRoom.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${activeRoom.id}` }, payload => {
+        if (applyingRemoteRef.current) return; // our own echo — already applied locally
         const row = payload.new as any;
         applyRoomSnapshot({
           queue: row.queue ?? [],
@@ -293,7 +310,7 @@ export default function App() {
     setCurrentTime(s);
     playerRef.current.seekTo(s);
     if (activeRoom && !applyingRemoteRef.current) {
-      syncRoomRemote(activeRoom.id, { queue, currentIndex, isPlaying, positionSeconds: s }).catch(() => {});
+      pushRoomState({ positionSeconds: s });
     }
   }
 
