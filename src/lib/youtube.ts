@@ -12,12 +12,21 @@ export async function getYTMusicClient(): Promise<YTMusic> {
   return ytmusic;
 }
 
+// ytmusic-api's searchSongs() makes a single request with no pagination —
+// it always returns one page (~20 results), how many YouTube ever returns
+// for one search call. searchVideos() is a second, differently-filtered
+// search on the same query, so merging + deduping the two roughly doubles
+// the real pool instead of just changing a slice() that was never the
+// actual bottleneck.
 export async function searchYouTubeTracks(query: string): Promise<Track[]> {
   try {
     const client = await getYTMusicClient();
-    const songs = await client.searchSongs(query);
+    const [songs, videos] = await Promise.all([
+      client.searchSongs(query),
+      client.searchVideos(query).catch(() => []),
+    ]);
 
-    return songs.slice(0, 40).map((s) => ({
+    const toTrack = (s: any): Track => ({
       id: s.videoId,
       title: s.name,
       artist: s.artist?.name ?? 'YouTube Music',
@@ -26,7 +35,16 @@ export async function searchYouTubeTracks(query: string): Promise<Track[]> {
         s.thumbnails?.[0]?.url ??
         `https://i.ytimg.com/vi/${s.videoId}/hqdefault.jpg`,
       duration: (s as any).duration?.totalSeconds ?? 0,
-    }));
+    });
+
+    const seen = new Set<string>();
+    const merged: Track[] = [];
+    for (const s of [...songs, ...videos]) {
+      if (seen.has(s.videoId)) continue;
+      seen.add(s.videoId);
+      merged.push(toTrack(s));
+    }
+    return merged.slice(0, 40);
   } catch (err) {
     console.error('ytmusic-api search error:', err);
     return [];
