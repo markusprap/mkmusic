@@ -28,8 +28,9 @@ import JoinRoomModal from '@/components/JoinRoomModal';
 import RoomCreatedModal from '@/components/RoomCreatedModal';
 import Artist from '@/components/Artist';
 import Album from '@/components/Album';
+import Account from '@/components/Account';
 
-type Tab = 'home' | 'search' | 'discover' | 'library';
+type Tab = 'home' | 'search' | 'discover' | 'library' | 'account';
 
 interface PlayerControl { seekTo: (s: number) => void; setVolume: (v: number) => void; pause: () => void; play: () => void }
 
@@ -372,10 +373,6 @@ export default function App() {
     if (dur) setDuration(dur);
   }
 
-  function handleSearchSubmit() {
-    setActiveTab('search');
-  }
-
   function handleSearchQuery(q: string) {
     setSearchQuery(q);
     if (q) setActiveTab('search');
@@ -419,22 +416,8 @@ export default function App() {
           onLeaveRoom={handleLeaveRoom}
         />
 
-        {/* TopBar */}
-        <TopBar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          searchQuery={searchQuery}
-          onSearchChange={handleSearchQuery}
-          onSearchSubmit={handleSearchSubmit}
-          profile={activeProfile}
-          onSwitchProfile={handleSwitchProfile}
-          onShowCredits={() => setShowCredits(true)}
-          onSignOut={handleSignOut}
-          activeRoom={activeRoom}
-          onCreateRoom={handleCreateRoom}
-          onJoinRoom={() => setShowJoinRoom(true)}
-          onLeaveRoom={handleLeaveRoom}
-        />
+        {/* TopBar (desktop only — mobile moves search into the Search tab and account into its own tab) */}
+        <TopBar onTabChange={setActiveTab} />
 
         {/* Main content */}
         <main className="main-content">
@@ -488,6 +471,7 @@ export default function App() {
                   onPlay={playTrack}
                   onProfileChange={handleProfileChange}
                   onCategoryClick={q => { setSearchQuery(q); }}
+                  onQueryChange={handleSearchQuery}
                   onAddToQueue={handleAddToQueue}
                   onOpenArtist={openArtist}
                   onOpenAlbum={openAlbum}
@@ -508,6 +492,18 @@ export default function App() {
                   onProfileChange={handleProfileChange}
                   onAddToQueue={handleAddToQueue}
                   onOpenArtist={openArtist}
+                />
+              )}
+              {activeTab === 'account' && (
+                <Account
+                  profile={activeProfile}
+                  activeRoom={activeRoom}
+                  onSwitchProfile={handleSwitchProfile}
+                  onCreateRoom={handleCreateRoom}
+                  onJoinRoom={() => setShowJoinRoom(true)}
+                  onLeaveRoom={handleLeaveRoom}
+                  onShowCredits={() => setShowCredits(true)}
+                  onSignOut={handleSignOut}
                 />
               )}
             </>

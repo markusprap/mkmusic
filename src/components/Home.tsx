@@ -123,16 +123,24 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
       <div className="page-header-gradient">
         <div className="page-header-gradient-bg"
           style={{background:`linear-gradient(180deg,rgba(${dynamicRgb},.35) 0%,#121212 100%)`}}/>
-        <h1 style={{fontSize:'clamp(26px,4vw,40px)',fontWeight:900,marginBottom:24}}>{greeting}, {profile.name} 👋</h1>
+        <h1 style={{fontSize:'clamp(26px,4vw,40px)',fontWeight:900,marginBottom:16}}>{greeting}, {profile.name} 👋</h1>
+
+        <div className="mood-chip-row">
+          {MOODS.map(m=>(
+            <button key={m.name} className="mood-chip" style={{background:m.color}} onClick={()=>onSearch(m.query)}>
+              {m.name}
+            </button>
+          ))}
+        </div>
 
         <h2 className="section-title" style={{marginBottom:12}}>Pilihan Cepat</h2>
         {loadingQuick ? (
           <div className="quick-grid">
-            {Array(6).fill(0).map((_,i)=><div key={i} className="skeleton" style={{height:60,borderRadius:6}}/>)}
+            {Array(6).fill(0).map((_,i)=><div key={i} className="skeleton" style={{height:60,width:260,flexShrink:0,borderRadius:6}}/>)}
           </div>
         ) : (
           <div className="quick-grid">
-            {quickPicks.slice(0,6).map(t=>(
+            {quickPicks.map(t=>(
               <div key={t.id} className="quick-card" onClick={()=>onPlay(t, quickPicks)}>
                 <img src={t.thumbnail} alt={t.title}/>
                 <span className="quick-name">{t.title}</span>
@@ -151,9 +159,9 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
           <div className="section-header">
             <h2 className="section-title">Baru Diputar</h2>
           </div>
-          <div className="card-grid">
+          <div className="scroll-row" style={{display:'flex',gap:16,overflowX:'auto',paddingBottom:8}}>
             {recentTracks.map(t=>(
-              <div key={t.id} className="card" onClick={()=>onPlay(t,recentTracks)}>
+              <div key={t.id} className="card" style={{width:180,flexShrink:0}} onClick={()=>onPlay(t,recentTracks)}>
                 <div className="card-img-wrap">
                   <img src={t.thumbnail} alt={t.title}/>
                   <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
@@ -220,20 +228,6 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
           </div>
         </div>
       ))}
-
-      {/* Mood chips */}
-      <div className="section">
-        <div className="section-header"><h2 className="section-title">Suasana Hati</h2></div>
-        <div className="mood-grid">
-          {MOODS.map(m=>(
-            <div key={m.name} className="genre-card"
-              style={{background:`linear-gradient(135deg,${m.color}cc,${m.color}44)`}}
-              onClick={()=>onSearch(m.query)}>
-              <span className="genre-card-name">{m.name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

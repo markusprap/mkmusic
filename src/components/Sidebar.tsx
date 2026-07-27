@@ -4,7 +4,7 @@ import { Profile, Track, getTrack } from '@/lib/store';
 import { Room } from '@/lib/rooms';
 import { isBackgroundModeEnabled, toggleBackgroundMode } from '@/lib/backgroundMode';
 
-type Tab = 'home' | 'search' | 'discover' | 'library';
+type Tab = 'home' | 'search' | 'discover' | 'library' | 'account';
 
 interface Props {
   profile: Profile;

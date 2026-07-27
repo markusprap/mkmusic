@@ -30,11 +30,12 @@ interface Props {
   onProfileChange: (p: Profile) => void;
   onAddToQueue: (t: Track) => void;
   onCategoryClick: (q: string) => void;
+  onQueryChange: (q: string) => void;
   onOpenArtist: (id: string) => void;
   onOpenAlbum: (id: string) => void;
 }
 
-export default function Search({ query, profile, currentTrack, isPlaying, onPlay, onProfileChange, onCategoryClick, onAddToQueue, onOpenArtist, onOpenAlbum }: Props) {
+export default function Search({ query, profile, currentTrack, isPlaying, onPlay, onProfileChange, onCategoryClick, onQueryChange, onAddToQueue, onOpenArtist, onOpenAlbum }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [artists, setArtists] = useState<ArtistResult[]>([]);
   const [albums, setAlbums] = useState<AlbumResult[]>([]);
@@ -42,6 +43,30 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>('songs');
   const lastQuery = useRef('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleKey(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { onQueryChange(''); inputRef.current?.blur(); }
+  }
+
+  const searchInput = (
+    <div style={{ padding: '20px 24px 0' }}>
+      <div className="topbar-search-wrap" style={{ maxWidth: '100%' }}>
+        <svg width="18" height="18" fill="none" stroke="#b3b3b3" strokeWidth="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input ref={inputRef} className="topbar-search-input" type="text" placeholder="Cari lagu, artis, album..."
+          value={query} onChange={e => onQueryChange(e.target.value)} onKeyDown={handleKey} autoFocus />
+        {query && (
+          <button onClick={() => onQueryChange('')} className="icon-btn" style={{ padding: 0 }}>
+            <svg width="16" height="16" fill="none" stroke="#b3b3b3" strokeWidth="2" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim() || q === lastQuery.current) return;
@@ -77,6 +102,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
   if (!query) {
     return (
       <div className="main-content-inner animate-in">
+        {searchInput}
         <div style={{padding:'24px 24px 16px'}}>
           <h2 className="section-title" style={{marginBottom:20}}>Jelajahi Semua</h2>
         </div>
@@ -105,7 +131,8 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
 
   return (
     <div className="main-content-inner animate-in">
-      <div style={{padding:'24px 24px 0'}}>
+      {searchInput}
+      <div style={{padding:'16px 24px 0'}}>
         <p style={{color:'#b3b3b3',fontSize:13,marginBottom:16}}>Hasil untuk: <strong style={{color:'#fff'}}>"{query}"</strong></p>
       </div>
 
