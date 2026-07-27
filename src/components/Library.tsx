@@ -114,7 +114,7 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
       </div>
 
       {/* Tabs */}
-      <div style={{padding:'0 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
+      <div className="lib-tabs-row">
         <div className="search-result-tabs" style={{flex:1}}>
           {(['songs','playlists','artists'] as LibTab[]).map(t => (
             <button key={t} className={`search-tab ${tab===t?'active':''}`} onClick={() => setTab(t)}>

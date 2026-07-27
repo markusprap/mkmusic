@@ -33,6 +33,7 @@ interface Props {
 export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onPlay, onSearch, onProfileChange }: Props) {
   const [sections, setSections] = useState<HomeSection[]>([]);
   const [quickPicks, setQuickPicks] = useState<Track[]>([]);
+  const [forYou, setForYou] = useState<Track[]>([]);
   const [loadingHome, setLoadingHome] = useState(true);
   const [loadingQuick, setLoadingQuick] = useState(true);
   const fetched = useRef(false);
@@ -44,10 +45,19 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
     if (fetched.current) return;
     fetched.current = true;
 
-    // Fetch real ytmusic home sections in parallel with quick picks
-    const [homeRes, quickRes] = await Promise.allSettled([
+    // Personalize off this profile's own listening: most recent like, then
+    // most recent play — YouTube's "related videos" for those tracks stands
+    // in for a recommendation engine, no ML backend to plug in here.
+    const likedSeed = profile.likedIds[profile.likedIds.length - 1];
+    const recentSeed = (profile.recentIds || []).find(id => id !== likedSeed);
+    const quickSeed = likedSeed ?? recentSeed;
+
+    const [homeRes, quickRes, forYouRes] = await Promise.allSettled([
       fetch('/api/home').then(r => r.json()),
-      fetch('/api/search?q=top+hits+indonesia+2024').then(r => r.json()),
+      fetch(quickSeed ? `/api/upnext?videoId=${quickSeed}` : '/api/search?q=top+hits+indonesia+2024').then(r => r.json()),
+      recentSeed && recentSeed !== quickSeed
+        ? fetch(`/api/upnext?videoId=${recentSeed}`).then(r => r.json())
+        : Promise.resolve({ tracks: [] }),
     ]);
 
     if (homeRes.status === 'fulfilled') {
@@ -61,7 +71,13 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
       setQuickPicks(tracks.slice(0, 8));
     }
     setLoadingQuick(false);
-  }, []);
+
+    if (forYouRes.status === 'fulfilled') {
+      const tracks: Track[] = forYouRes.value.tracks ?? [];
+      tracks.forEach(cacheTrack);
+      setForYou(tracks.slice(0, 10));
+    }
+  }, [profile.likedIds, profile.recentIds]);
 
   useEffect(() => { fetchHome(); }, [fetchHome]);
 
@@ -129,6 +145,28 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
           <div className="card-grid">
             {recentTracks.map(t=>(
               <div key={t.id} className="card" onClick={()=>onPlay(t,recentTracks)}>
+                <div className="card-img-wrap">
+                  <img src={t.thumbnail} alt={t.title}/>
+                  <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
+                </div>
+                <TrackMenu className="card-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
+                <div className="card-title">{t.title}</div>
+                <div className="card-sub">{t.artist}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Personalized picks, off this profile's own recent plays */}
+      {forYou.length > 0 && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Untuk Kamu</h2>
+          </div>
+          <div className="scroll-row" style={{display:'flex',gap:16,overflowX:'auto',paddingBottom:8}}>
+            {forYou.map(t=>(
+              <div key={t.id} className="card" style={{width:180,flexShrink:0}} onClick={()=>onPlay(t,forYou)}>
                 <div className="card-img-wrap">
                   <img src={t.thumbnail} alt={t.title}/>
                   <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
