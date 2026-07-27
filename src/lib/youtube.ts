@@ -7,7 +7,11 @@ let ytmusic: YTMusic | null = null;
 export async function getYTMusicClient(): Promise<YTMusic> {
   if (!ytmusic) {
     ytmusic = new YTMusic();
-    await ytmusic.initialize();
+    // Without a locale, YouTube Music serves its generic US/English guest
+    // feed ("Pop", "Today's International hits") — GL/HL steer the same
+    // anonymous session to Indonesia's home feed instead (Dangdut, local
+    // charts, Bahasa titles), much closer to what the real app shows.
+    await ytmusic.initialize({ GL: 'ID', HL: 'id' });
   }
   return ytmusic;
 }
