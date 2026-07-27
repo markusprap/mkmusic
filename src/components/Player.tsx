@@ -1,5 +1,6 @@
 'use client';
 import { Track, Profile, toggleLike } from '@/lib/store';
+import { isBackgroundModeEnabled } from '@/lib/backgroundMode';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 declare global {
@@ -54,8 +55,15 @@ export default function Player(props: Props) {
   const { track, isPlaying, shuffle, repeat, volume, currentTime, duration } = props;
   const ytPlayerRef = useRef<any>(null);
   const iframeContainerRef = useRef<HTMLDivElement>(null);
+  const audioElRef = useRef<HTMLAudioElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [ytReady, setYtReady] = useState(false);
+
+  // Which engine this Player instance uses — decided once per mount from the
+  // user's Background Mode preference. Toggling the setting reloads the page
+  // rather than hot-swapping engines mid-session (simpler, and nobody expects
+  // a settings toggle to take effect without a refresh).
+  const backgroundMode = useRef(isBackgroundModeEnabled()).current;
 
   // Keep latest onTrackEnd callback in ref to prevent stale closure bugs in YT event handler
   const onTrackEndRef = useRef(props.onTrackEnd);
@@ -63,8 +71,58 @@ export default function Player(props: Props) {
     onTrackEndRef.current = props.onTrackEnd;
   }, [props.onTrackEnd]);
 
+  // ── Native <audio> engine (Background Mode only) ──────────────
+  useEffect(() => {
+    if (!backgroundMode || !audioElRef.current) return;
+    const audio = audioElRef.current;
+    audio.addEventListener('ended', () => onTrackEndRef.current());
+    props.playerRef.current = {
+      seekTo: (s) => { audio.currentTime = s; },
+      setVolume: (v) => { audio.volume = v / 100; },
+      pause: () => audio.pause(),
+      play: () => audio.play().catch(() => {}),
+    };
+  }, []); // eslint-disable-line
+
+  // Load new track (Background Mode): resolve a direct audio URL, then play.
+  useEffect(() => {
+    if (!backgroundMode || !track || !audioElRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/stream?videoId=${track.id}`);
+        const data = await res.json();
+        if (cancelled || !audioElRef.current || !data.url) return;
+        audioElRef.current.src = data.url;
+        if (isPlaying) audioElRef.current.play().catch(() => {});
+      } catch { /* stream extraction failed — track just won't play */ }
+    })();
+    return () => { cancelled = true; };
+  }, [backgroundMode, track?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!backgroundMode || !audioElRef.current) return;
+    if (isPlaying) audioElRef.current.play().catch(() => {});
+    else audioElRef.current.pause();
+  }, [backgroundMode, isPlaying]);
+
+  useEffect(() => {
+    if (!backgroundMode || !audioElRef.current) return;
+    audioElRef.current.volume = volume / 100;
+  }, [backgroundMode, volume]);
+
+  useEffect(() => {
+    if (!backgroundMode || !audioElRef.current) return;
+    const audio = audioElRef.current;
+    const handler = () => props.onTimeUpdate(audio.currentTime, audio.duration || 0);
+    audio.addEventListener('timeupdate', handler);
+    return () => audio.removeEventListener('timeupdate', handler);
+  }, [backgroundMode]); // eslint-disable-line
+
+  // ── YouTube iframe engine (default) ────────────────────────────
   // Load YT iFrame API once
   useEffect(() => {
+    if (backgroundMode) return;
     if (window.YT?.Player) { setYtReady(true); return; }
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
@@ -74,7 +132,7 @@ export default function Player(props: Props) {
 
   // Initialize YT player when API is ready
   useEffect(() => {
-    if (!ytReady || !iframeContainerRef.current || ytPlayerRef.current) return;
+    if (backgroundMode || !ytReady || !iframeContainerRef.current || ytPlayerRef.current) return;
     ytPlayerRef.current = new window.YT.Player(iframeContainerRef.current, {
       height: '1',
       width: '1',
@@ -104,7 +162,7 @@ export default function Player(props: Props) {
   // one fired via setTimeout would be disconnected from the tap's gesture
   // context, which mobile browsers are more likely to block.
   useEffect(() => {
-    if (!track || !ytPlayerRef.current) return;
+    if (backgroundMode || !track || !ytPlayerRef.current) return;
     try {
       if (typeof ytPlayerRef.current.loadVideoById === 'function') {
         ytPlayerRef.current.loadVideoById(track.id);
@@ -116,7 +174,7 @@ export default function Player(props: Props) {
 
   // Sync play/pause
   useEffect(() => {
-    if (!ytPlayerRef.current) return;
+    if (backgroundMode || !ytPlayerRef.current) return;
     try {
       if (isPlaying) ytPlayerRef.current.playVideo?.();
       else ytPlayerRef.current.pauseVideo?.();
@@ -125,6 +183,7 @@ export default function Player(props: Props) {
 
   // Volume sync
   useEffect(() => {
+    if (backgroundMode) return;
     try { ytPlayerRef.current?.setVolume?.(volume); } catch { /* ignore */ }
   }, [volume]);
 
@@ -160,8 +219,9 @@ export default function Player(props: Props) {
     }
   }, [isPlaying]);
 
-  // Time tracking
+  // Time tracking (iframe engine polls; native <audio> uses its own 'timeupdate' effect above)
   useEffect(() => {
+    if (backgroundMode) return;
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     progressIntervalRef.current = setInterval(() => {
       if (!ytPlayerRef.current) return;
@@ -175,7 +235,7 @@ export default function Player(props: Props) {
   }, []); // eslint-disable-line
 
   const handleSeek = useCallback((s: number) => {
-    try { ytPlayerRef.current?.seekTo?.(s, true); } catch { /* ignore */ }
+    try { props.playerRef.current?.seekTo?.(s); } catch { /* ignore */ }
     props.onSeek(s);
   }, []); // eslint-disable-line
 
@@ -196,7 +256,7 @@ export default function Player(props: Props) {
     return (
       <footer className="player-bar">
         {/* Hidden YT iframe with non-zero dimensions to avoid browser throttling */}
-        <div style={iframeStyle}><div ref={iframeContainerRef} /></div>
+        <div style={iframeStyle}><div ref={iframeContainerRef} /><audio ref={audioElRef} /></div>
         <div className="player-left" style={{gap:12}}>
           <div style={{width:56,height:56,borderRadius:4,background:'#282828',flexShrink:0}} />
           <div>
@@ -226,7 +286,7 @@ export default function Player(props: Props) {
   return (
     <footer className="player-bar">
       {/* Hidden YT iFrame */}
-      <div style={iframeStyle}><div ref={iframeContainerRef} /></div>
+      <div style={iframeStyle}><div ref={iframeContainerRef} /><audio ref={audioElRef} /></div>
 
       {/* LEFT: track info */}
       <div className="player-left">

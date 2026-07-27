@@ -1,6 +1,8 @@
 'use client';
+import { useState } from 'react';
 import { Profile, Track, getTrack } from '@/lib/store';
 import { Room } from '@/lib/rooms';
+import { isBackgroundModeEnabled, toggleBackgroundMode } from '@/lib/backgroundMode';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -22,6 +24,8 @@ interface Props {
 }
 
 export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits, onSignOut, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
+  const [bgMode] = useState(() => isBackgroundModeEnabled());
+
   const recentIds = profile?.recentIds || [];
   const likedIds = profile?.likedIds || [];
   const playlists = profile?.playlists || [];
@@ -159,6 +163,10 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
             <div className="profile-sub">Ganti profil</div>
           </div>
         </div>
+        <button className="lib-item" style={{...bottomBtnStyle, display:'flex', justifyContent:'space-between'}} onClick={toggleBackgroundMode}>
+          <span>Mode Latar Belakang (Beta)</span>
+          <span style={{color: bgMode ? '#1db954' : 'var(--text-2)', fontWeight:700}}>{bgMode ? 'ON' : 'OFF'}</span>
+        </button>
         <button className="lib-item" style={bottomBtnStyle} onClick={onShowCredits}>
           Credits & Donasi
         </button>

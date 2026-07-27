@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { Profile } from '@/lib/store';
 import { Room } from '@/lib/rooms';
+import { isBackgroundModeEnabled, toggleBackgroundMode } from '@/lib/backgroundMode';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -24,6 +25,7 @@ interface Props {
 export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchChange, onSearchSubmit, profile, onSwitchProfile, onShowCredits, onSignOut, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [bgMode] = useState(() => isBackgroundModeEnabled());
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter') onSearchSubmit();
@@ -88,6 +90,10 @@ export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchCh
                   </>
                 )}
                 <div className="ctx-item" onClick={() => { setShowMenu(false); onSwitchProfile(); }}>Ganti Profil</div>
+                <div className="ctx-item" onClick={toggleBackgroundMode} style={{display:'flex', justifyContent:'space-between', gap:12}}>
+                  <span>Mode Latar Belakang (Beta)</span>
+                  <span style={{color: bgMode ? '#1db954' : '#727272', fontWeight:700}}>{bgMode ? 'ON' : 'OFF'}</span>
+                </div>
                 <div className="ctx-item" onClick={() => { setShowMenu(false); onShowCredits(); }}>Credits & Donasi</div>
                 <div className="ctx-item" onClick={() => { setShowMenu(false); onSignOut(); }}>Keluar Akun</div>
               </div>
