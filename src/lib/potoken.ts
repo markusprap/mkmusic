@@ -80,7 +80,7 @@ export async function getAudioUrl(videoId: string): Promise<string> {
   const { innertube, minter } = cached;
 
   const poToken = await minter.mintAsWebsafeString(videoId);
-  const info = await innertube.getBasicInfo(videoId, { client: 'MWEB' });
+  const info = await innertube.getBasicInfo(videoId, { client: 'MWEB', po_token: poToken });
   const format = info.chooseFormat({ type: 'audio', quality: 'best' });
   const url = await format.decipher(innertube.session.player);
   return `${url}&pot=${poToken}`;
