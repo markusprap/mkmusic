@@ -1,6 +1,7 @@
 'use client';
 import { Track, Profile, toggleLike } from '@/lib/store';
 import { isBackgroundModeEnabled } from '@/lib/backgroundMode';
+import { resolveStreamUrl, prefetchStreamUrl } from '@/lib/streamCache';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 declare global {
@@ -84,21 +85,25 @@ export default function Player(props: Props) {
     };
   }, []); // eslint-disable-line
 
-  // Load new track (Background Mode): resolve a direct audio URL, then play.
+  // Load new track (Background Mode): resolve a direct audio URL (cached
+  // across replays/skip-back), then play.
   useEffect(() => {
     if (!backgroundMode || !track || !audioElRef.current) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/stream?videoId=${track.id}`);
-        const data = await res.json();
-        if (cancelled || !audioElRef.current || !data.url) return;
-        audioElRef.current.src = data.url;
-        if (isPlaying) audioElRef.current.play().catch(() => {});
-      } catch { /* stream extraction failed — track just won't play */ }
-    })();
+    resolveStreamUrl(track.id).then(url => {
+      if (cancelled || !audioElRef.current || !url) return;
+      audioElRef.current.src = url;
+      if (isPlaying) audioElRef.current.play().catch(() => {});
+    });
     return () => { cancelled = true; };
   }, [backgroundMode, track?.id]); // eslint-disable-line
+
+  // Prefetch the next couple of queued tracks so skipping ahead doesn't wait
+  // on the full extraction chain — it's usually already resolved by then.
+  useEffect(() => {
+    if (!backgroundMode) return;
+    props.queue.slice(props.currentIndex + 1, props.currentIndex + 3).forEach(t => prefetchStreamUrl(t.id));
+  }, [backgroundMode, props.queue, props.currentIndex]); // eslint-disable-line
 
   useEffect(() => {
     if (!backgroundMode || !audioElRef.current) return;
