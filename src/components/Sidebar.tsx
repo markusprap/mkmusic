@@ -140,7 +140,7 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
           </div>
         ) : (
           <div style={{display:'flex', gap:8, marginBottom:8}}>
-            <button className="lib-item" style={{...bottomBtnStyle, flex:1}} onClick={onCreateRoom} disabled={!currentTrack}>
+            <button className="lib-item" style={{...bottomBtnStyle, flex:1}} onClick={onCreateRoom}>
               Buat Room
             </button>
             <button className="lib-item" style={{...bottomBtnStyle, flex:1}} onClick={onJoinRoom}>

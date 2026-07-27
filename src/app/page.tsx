@@ -22,6 +22,7 @@ import Queue from '@/components/Queue';
 import Player from '@/components/Player';
 import ExpandedPlayer from '@/components/ExpandedPlayer';
 import Credits from '@/components/Credits';
+import JoinRoomModal from '@/components/JoinRoomModal';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -99,6 +100,7 @@ export default function App() {
 
   // ── Room (synced listening) ──────────────────
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
+  const [showJoinRoom, setShowJoinRoom] = useState(false);
   const applyingRemoteRef = useRef(false);
 
   const currentTrack = queue[currentIndex] ?? null;
@@ -194,14 +196,13 @@ export default function App() {
     if (room) setActiveRoom(room);
   }
 
-  async function handleJoinRoom() {
+  async function submitJoinRoom(code: string): Promise<string | void> {
     if (!activeProfile) return;
-    const code = window.prompt('Masukkan kode Room:');
-    if (!code) return;
     const result = await joinRoomRemote(code, activeProfile.id);
-    if ('error' in result) { alert(result.error); return; }
+    if ('error' in result) return result.error;
     applyRoomSnapshot(result);
     setActiveRoom(result);
+    setShowJoinRoom(false);
   }
 
   async function handleLeaveRoom() {
@@ -344,7 +345,7 @@ export default function App() {
           onSignOut={handleSignOut}
           activeRoom={activeRoom}
           onCreateRoom={handleCreateRoom}
-          onJoinRoom={handleJoinRoom}
+          onJoinRoom={() => setShowJoinRoom(true)}
           onLeaveRoom={handleLeaveRoom}
         />
 
@@ -359,10 +360,9 @@ export default function App() {
           onSwitchProfile={handleSwitchProfile}
           onShowCredits={() => setShowCredits(true)}
           onSignOut={handleSignOut}
-          currentTrack={currentTrack}
           activeRoom={activeRoom}
           onCreateRoom={handleCreateRoom}
-          onJoinRoom={handleJoinRoom}
+          onJoinRoom={() => setShowJoinRoom(true)}
           onLeaveRoom={handleLeaveRoom}
         />
 
@@ -454,6 +454,7 @@ export default function App() {
       </div>
 
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
+      {showJoinRoom && <JoinRoomModal onJoin={submitJoinRoom} onClose={() => setShowJoinRoom(false)} />}
 
       {/* Mobile Bottom Nav */}
       <BottomNav activeTab={activeTab} onChange={setActiveTab} />

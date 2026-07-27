@@ -1,21 +1,24 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
 
 type Mode = 'signin' | 'signup';
 
 declare global {
-  interface Window { turnstile?: { render: (el: HTMLElement, opts: Record<string, unknown>) => string; reset: () => void } }
+  interface Window { turnstile?: { render: (el: HTMLElement, opts: Record<string, unknown>) => string; reset: (widgetId?: string) => void } }
 }
 
-function Turnstile({ onToken }: { onToken: (t: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+export interface TurnstileHandle { reset: () => void }
+
+const Turnstile = forwardRef<TurnstileHandle, { onToken: (t: string) => void }>(({ onToken }, ref) => {
+  const container = useRef<HTMLDivElement>(null);
+  const widgetId = useRef<string>();
   const [scriptReady, setScriptReady] = useState(false);
 
   useEffect(() => {
-    if (scriptReady && ref.current && window.turnstile) {
-      window.turnstile.render(ref.current, {
+    if (scriptReady && container.current && window.turnstile) {
+      widgetId.current = window.turnstile.render(container.current, {
         sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
         theme: 'dark',
         callback: onToken,
@@ -23,13 +26,18 @@ function Turnstile({ onToken }: { onToken: (t: string) => void }) {
     }
   }, [scriptReady]);
 
+  useImperativeHandle(ref, () => ({
+    reset: () => { if (widgetId.current) window.turnstile?.reset(widgetId.current); },
+  }));
+
   return (
     <>
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer onLoad={() => setScriptReady(true)} />
-      <div ref={ref} />
+      <div ref={container} />
     </>
   );
-}
+});
+Turnstile.displayName = 'Turnstile';
 
 function PasswordInput(props: { placeholder: string; value: string; onChange: (v: string) => void }) {
   const [visible, setVisible] = useState(false);
@@ -65,6 +73,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
+  const turnstileRef = useRef<TurnstileHandle>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   async function handleGoogle() {
@@ -88,7 +97,7 @@ export default function Login() {
     if (mode === 'signup') {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name }, captchaToken } });
       setBusy(false);
-      window.turnstile?.reset();
+      turnstileRef.current?.reset();
       setCaptchaToken('');
       if (error) return setError(error.message);
       if (data.session) {
@@ -104,7 +113,7 @@ export default function Login() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
       setBusy(false);
-      window.turnstile?.reset();
+      turnstileRef.current?.reset();
       setCaptchaToken('');
       if (error) return setError(error.message);
       location.reload();
@@ -144,7 +153,7 @@ export default function Login() {
             {mode === 'signup' && (
               <PasswordInput placeholder="Konfirmasi Password" value={confirmPassword} onChange={setConfirmPassword} />
             )}
-            <Turnstile onToken={setCaptchaToken} />
+            <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
             {successMsg && <p style={{ color: '#1db954', fontSize: 13 }}>{successMsg}</p>}
             {error && <p style={{ color: '#f44336', fontSize: 13 }}>{error}</p>}
             <button type="submit" disabled={busy} style={primaryBtn}>
