@@ -20,6 +20,12 @@ interface HomeItem {
   name: string; artist: string; artistId?: string | null; thumbnail: string;
 }
 
+function toHomeItems(tracks: Track[]): HomeItem[] {
+  return tracks.slice(0, 10).map(t => ({
+    type: 'SONG', id: t.id, videoId: t.id, playlistId: null, name: t.title, artist: t.artist, artistId: t.artistId ?? null, thumbnail: t.thumbnail,
+  }));
+}
+
 interface Props {
   profile: Profile;
   currentTrack: Track | null;
@@ -54,18 +60,44 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
     const likedSeed = profile.likedIds[profile.likedIds.length - 1];
     const recentSeed = (profile.recentIds || []).find(id => id !== likedSeed);
     const quickSeed = likedSeed ?? recentSeed;
+    // Any cached track for those seeds may carry an artistId (search/home/
+    // upnext results all set it) — reuse it to pull that artist's related
+    // radio/playlist shelf instead of introducing a separate taste-profiling step.
+    const artistSeed = getTrack(quickSeed ?? '')?.artistId || getTrack(recentSeed ?? '')?.artistId;
 
-    const [homeRes, quickRes, forYouRes] = await Promise.allSettled([
+    const [homeRes, quickRes, forYouRes, similarRes, chartRes, dangdutRes] = await Promise.allSettled([
       fetch('/api/home').then(r => r.json()),
       fetch(quickSeed ? `/api/upnext?videoId=${quickSeed}` : '/api/search?q=top+hits+indonesia+2024').then(r => r.json()),
       recentSeed && recentSeed !== quickSeed
         ? fetch(`/api/upnext?videoId=${recentSeed}`).then(r => r.json())
         : Promise.resolve({ tracks: [] }),
+      artistSeed ? fetch(`/api/artist?id=${artistSeed}`).then(r => r.json()) : Promise.resolve(null),
+      fetch('/api/search?q=' + encodeURIComponent('top 50 global hits 2024')).then(r => r.json()),
+      fetch('/api/search?q=' + encodeURIComponent('dangdut koplo')).then(r => r.json()),
     ]);
 
-    if (homeRes.status === 'fulfilled') {
-      setSections(homeRes.value.sections ?? []);
+    const extraSections: HomeSection[] = [];
+    const seedArtist = similarRes.status === 'fulfilled' ? similarRes.value?.artist : null;
+    if (seedArtist?.similarArtists?.length) {
+      // ytmusic-api's "similarArtists" field is actually the artist's related
+      // radio/playlist shelf (IDs come back as playlist IDs, not channel
+      // IDs) — surfaced as playlists, not artist cards, to match what it is.
+      extraSections.push({
+        title: `Berdasarkan ${seedArtist.name}`,
+        items: seedArtist.similarArtists.slice(0, 10).map((a: any) => ({
+          type: 'PLAYLIST', id: a.id, videoId: null, playlistId: a.id, name: a.name, artist: '', artistId: null, thumbnail: a.thumbnail,
+        })),
+      });
     }
+    if (chartRes.status === 'fulfilled' && chartRes.value?.tracks?.length) {
+      extraSections.push({ title: 'Chart Global', items: toHomeItems(chartRes.value.tracks) });
+    }
+    if (dangdutRes.status === 'fulfilled' && dangdutRes.value?.tracks?.length) {
+      extraSections.push({ title: 'Dangdut', items: toHomeItems(dangdutRes.value.tracks) });
+    }
+
+    const realSections = homeRes.status === 'fulfilled' ? (homeRes.value.sections ?? []) : [];
+    setSections([...realSections, ...extraSections]);
     setLoadingHome(false);
 
     if (quickRes.status === 'fulfilled') {
