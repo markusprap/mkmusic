@@ -132,20 +132,28 @@ export default function Player(props: Props) {
 
   // Media Session: lock-screen/notification controls, and signals the browser
   // this tab is actively playing media so it's not suspended in the background.
+  // Handlers must set definite state (not toggle) — some mobile browsers invoke
+  // 'play'/'pause' on their own to reconcile the displayed state, and a toggle
+  // there can flip playback right back off after the user presses play.
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
   useEffect(() => {
     if (!('mediaSession' in navigator) || !track) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title,
-      artist: track.artist,
-      artwork: [{ src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' }],
-    });
-    navigator.mediaSession.setActionHandler('play', props.onPlayPause);
-    navigator.mediaSession.setActionHandler('pause', props.onPlayPause);
-    navigator.mediaSession.setActionHandler('previoustrack', props.onPrev);
-    navigator.mediaSession.setActionHandler('nexttrack', props.onNext);
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.seekTime != null) props.onSeek(details.seekTime);
-    });
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.artist,
+        artwork: [{ src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' }],
+      });
+      navigator.mediaSession.setActionHandler('play', () => { if (!isPlayingRef.current) props.onPlayPause(); });
+      navigator.mediaSession.setActionHandler('pause', () => { if (isPlayingRef.current) props.onPlayPause(); });
+      navigator.mediaSession.setActionHandler('previoustrack', props.onPrev);
+      navigator.mediaSession.setActionHandler('nexttrack', props.onNext);
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime != null) props.onSeek(details.seekTime);
+      });
+    } catch { /* Media Session unsupported in this browser; core playback is unaffected */ }
   }, [track?.id]); // eslint-disable-line
 
   useEffect(() => {
