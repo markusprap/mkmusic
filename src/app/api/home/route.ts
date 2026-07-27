@@ -1,16 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import YTMusic from 'ytmusic-api';
-
-let ytmusic: YTMusic | null = null;
-async function getClient(): Promise<YTMusic> {
-  if (!ytmusic) { ytmusic = new YTMusic(); await ytmusic.initialize(); }
-  return ytmusic;
-}
+import { NextResponse } from 'next/server';
+import { getYTMusicClient } from '@/lib/youtube';
 
 // GET /api/home — return ytmusic home sections
 export async function GET() {
   try {
-    const client = await getClient();
+    const client = await getYTMusicClient();
     const sections = await client.getHomeSections();
 
     const result = sections.map((section: any) => ({

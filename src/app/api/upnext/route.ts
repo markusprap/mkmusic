@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import YTMusic from 'ytmusic-api';
-
-let ytmusic: YTMusic | null = null;
-async function getClient(): Promise<YTMusic> {
-  if (!ytmusic) { ytmusic = new YTMusic(); await ytmusic.initialize(); }
-  return ytmusic;
-}
+import { getYTMusicClient } from '@/lib/youtube';
 
 // GET /api/upnext?videoId=xxx
 export async function GET(req: NextRequest) {
@@ -13,7 +7,7 @@ export async function GET(req: NextRequest) {
   if (!videoId) return NextResponse.json({ tracks: [] });
 
   try {
-    const client = await getClient();
+    const client = await getYTMusicClient();
     const items = await client.getUpNexts(videoId);
     const tracks = items.slice(0, 20).map((item: any) => ({
       id: item.videoId,

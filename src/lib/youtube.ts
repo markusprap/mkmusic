@@ -4,7 +4,7 @@ import { Track } from './store';
 // ponytail: singleton instance, initialize once per server process
 let ytmusic: YTMusic | null = null;
 
-async function getClient(): Promise<YTMusic> {
+export async function getYTMusicClient(): Promise<YTMusic> {
   if (!ytmusic) {
     ytmusic = new YTMusic();
     await ytmusic.initialize();
@@ -14,7 +14,7 @@ async function getClient(): Promise<YTMusic> {
 
 export async function searchYouTubeTracks(query: string): Promise<Track[]> {
   try {
-    const client = await getClient();
+    const client = await getYTMusicClient();
     const songs = await client.searchSongs(query);
 
     return songs.slice(0, 20).map((s) => ({

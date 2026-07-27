@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import YTMusic from 'ytmusic-api';
-
-let ytmusic: YTMusic | null = null;
-async function getClient(): Promise<YTMusic> {
-  if (!ytmusic) { ytmusic = new YTMusic(); await ytmusic.initialize(); }
-  return ytmusic;
-}
+import { getYTMusicClient } from '@/lib/youtube';
 
 interface SyncedLine { time: number; text: string }
 
@@ -92,7 +86,7 @@ export async function GET(req: NextRequest) {
   // 2. Fallback to YTMusic getLyrics (returns clean plain lyrics, non-synced)
   if (videoId) {
     try {
-      const client = await getClient();
+      const client = await getYTMusicClient();
       const raw = await client.getLyrics(videoId);
       if (raw && Array.isArray(raw) && raw.length > 0) {
         const plain = raw.join('\n');

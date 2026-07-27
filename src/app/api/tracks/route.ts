@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import YTMusic from 'ytmusic-api';
-
-let ytmusic: YTMusic | null = null;
-async function getClient(): Promise<YTMusic> {
-  if (!ytmusic) { ytmusic = new YTMusic(); await ytmusic.initialize(); }
-  return ytmusic;
-}
+import { getYTMusicClient } from '@/lib/youtube';
 
 // GET /api/tracks?ids=id1,id2,... — batch-fetch title/artist/thumbnail for
 // track IDs whose metadata isn't in the client's (in-memory, non-persisted)
@@ -14,7 +8,7 @@ export async function GET(req: NextRequest) {
   const ids = (req.nextUrl.searchParams.get('ids') ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
   if (ids.length === 0) return NextResponse.json({ tracks: [] });
 
-  const client = await getClient();
+  const client = await getYTMusicClient();
   const results = await Promise.allSettled(ids.map(async id => {
     try {
       const song = await client.getSong(id);
