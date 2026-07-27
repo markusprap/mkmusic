@@ -2,6 +2,7 @@
 import { Track, Profile, Playlist, getTrack, toggleLike, createPlaylist, removeFromPlaylist } from '@/lib/store';
 import { useState } from 'react';
 import TrackMenu from './TrackMenu';
+import NamePromptModal from './NamePromptModal';
 
 type LibTab = 'songs' | 'playlists' | 'artists';
 
@@ -16,6 +17,7 @@ interface Props {
 export default function Library({ profile, currentTrack, isPlaying, onPlay, onProfileChange }: Props) {
   const [tab, setTab] = useState<LibTab>('songs');
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
 
   const likedIds = profile?.likedIds || [];
   const playlists = profile?.playlists || [];
@@ -38,10 +40,13 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
   const artists = [...new Map(likedTracks.map(t => [t.artist, t])).values()];
 
   function handleCreatePlaylist() {
-    const name = window.prompt('Nama playlist baru:');
-    if (!name || !name.trim()) return;
-    const { profile: updated } = createPlaylist(profile, name.trim());
+    setShowCreatePlaylist(true);
+  }
+
+  function submitCreatePlaylist(name: string) {
+    const { profile: updated } = createPlaylist(profile, name);
     onProfileChange(updated);
+    setShowCreatePlaylist(false);
   }
 
   function handleRemoveFromPlaylist(trackId: string) {
@@ -220,6 +225,11 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
             </div>
           )}
         </div>
+      )}
+
+      {showCreatePlaylist && (
+        <NamePromptModal title="Playlist Baru" placeholder="Nama playlist"
+          onSubmit={submitCreatePlaylist} onClose={() => setShowCreatePlaylist(false)} />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 import { Profile, Track, createPlaylist, addToPlaylist } from '@/lib/store';
 import { useState } from 'react';
+import NamePromptModal from './NamePromptModal';
 
 interface Props {
   profile: Profile;
@@ -11,6 +12,7 @@ interface Props {
 
 export default function TrackMenu({ profile, track, onProfileChange, className }: Props) {
   const [open, setOpen] = useState(false);
+  const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
 
   function addTo(playlistId: string) {
     onProfileChange(addToPlaylist(profile, playlistId, track.id));
@@ -18,11 +20,14 @@ export default function TrackMenu({ profile, track, onProfileChange, className }
   }
 
   function createNew() {
-    const name = window.prompt('Nama playlist baru:');
     setOpen(false);
-    if (!name || !name.trim()) return;
-    const { profile: withPlaylist, playlist } = createPlaylist(profile, name.trim());
+    setShowCreatePlaylist(true);
+  }
+
+  function submitCreatePlaylist(name: string) {
+    const { profile: withPlaylist, playlist } = createPlaylist(profile, name);
     onProfileChange(addToPlaylist(withPlaylist, playlist.id, track.id));
+    setShowCreatePlaylist(false);
   }
 
   return (
@@ -44,6 +49,10 @@ export default function TrackMenu({ profile, track, onProfileChange, className }
             <div className="ctx-item" onClick={createNew}>+ Playlist Baru</div>
           </div>
         </>
+      )}
+      {showCreatePlaylist && (
+        <NamePromptModal title="Playlist Baru" placeholder="Nama playlist"
+          onSubmit={submitCreatePlaylist} onClose={() => setShowCreatePlaylist(false)} />
       )}
     </div>
   );

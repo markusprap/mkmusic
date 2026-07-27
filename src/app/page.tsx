@@ -4,7 +4,7 @@ import {
   Track, Profile,
   addRecent, cacheTrack, syncProfile,
 } from '@/lib/store';
-import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote } from '@/lib/rooms';
+import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote, fetchRoomRemote } from '@/lib/rooms';
 import { extractColor } from '@/lib/colorExtract';
 
 import Welcome from '@/components/Welcome';
@@ -102,6 +102,12 @@ export default function App() {
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const applyingRemoteRef = useRef(false);
+  // Mirrors of the latest player state, kept fresh every render so the
+  // realtime subscription's callback (set up once per room, not per render)
+  // can compare against "what we actually have right now" instead of a
+  // stale closure from whenever it was subscribed.
+  const liveStateRef = useRef({ queue, currentIndex, isPlaying, currentTime });
+  liveStateRef.current = { queue, currentIndex, isPlaying, currentTime };
 
   const currentTrack = queue[currentIndex] ?? null;
 
@@ -147,33 +153,44 @@ export default function App() {
 
   // Applies an incoming room state (from a fresh join or a realtime update)
   // to local player state, extrapolating position from the snapshot's timestamp.
+  // Compares against liveStateRef first and skips fields that already match —
+  // this is what makes the echo of our own write a no-op instead of an
+  // audible stutter, without needing a timing-based lock (which previously
+  // caused writes made while a prior one was in flight to get dropped).
   function applyRoomSnapshot(snapshot: { queue: Track[]; currentIndex: number; isPlaying: boolean; positionSeconds: number; positionUpdatedAt: string }) {
-    applyingRemoteRef.current = true;
-    snapshot.queue.forEach(cacheTrack);
-    setQueue(snapshot.queue);
-    setCurrentIndex(snapshot.currentIndex);
-    setIsPlaying(snapshot.isPlaying);
+    const live = liveStateRef.current;
+    const queueChanged = snapshot.queue.length !== live.queue.length || snapshot.queue.some((t, i) => t.id !== live.queue[i]?.id);
+    const indexChanged = snapshot.currentIndex !== live.currentIndex;
+    const isPlayingChanged = snapshot.isPlaying !== live.isPlaying;
+
     const elapsed = snapshot.isPlaying ? (Date.now() - new Date(snapshot.positionUpdatedAt).getTime()) / 1000 : 0;
     const pos = snapshot.positionSeconds + elapsed;
-    setCurrentTime(pos);
-    playerRef.current.seekTo(pos);
+    const positionDrifted = Math.abs(pos - live.currentTime) > 1.5;
+
+    if (!queueChanged && !indexChanged && !isPlayingChanged && !positionDrifted) return; // pure echo of our own state
+
+    applyingRemoteRef.current = true;
+    if (queueChanged) { snapshot.queue.forEach(cacheTrack); setQueue(snapshot.queue); }
+    if (indexChanged) setCurrentIndex(snapshot.currentIndex);
+    if (isPlayingChanged) setIsPlaying(snapshot.isPlaying);
+    if (indexChanged || isPlayingChanged || positionDrifted) {
+      setCurrentTime(pos);
+      playerRef.current.seekTo(pos);
+    }
     setTimeout(() => { applyingRemoteRef.current = false; }, 0);
   }
 
-  // Pushes local playback state to the room row. Also marks the update as
-  // "ours" for a short window so the realtime echo of our own write doesn't
-  // get re-applied — that was causing an unwanted seekTo() (audible stutter)
-  // on every play/pause/seek/skip while in a room.
-  async function pushRoomState(overrides?: Partial<{ queue: Track[]; currentIndex: number; isPlaying: boolean; positionSeconds: number }>) {
+  // Pushes local playback state to the room row. Fire-and-forget — never
+  // gates on a prior push still being in flight, so rapid skips/seeks each
+  // still land (the earlier timing-based lock silently dropped these).
+  function pushRoomState(overrides?: Partial<{ queue: Track[]; currentIndex: number; isPlaying: boolean; positionSeconds: number }>) {
     if (!activeRoom) return;
-    applyingRemoteRef.current = true;
-    await syncRoomRemote(activeRoom.id, {
+    syncRoomRemote(activeRoom.id, {
       queue: overrides?.queue ?? queue,
       currentIndex: overrides?.currentIndex ?? currentIndex,
       isPlaying: overrides?.isPlaying ?? isPlaying,
       positionSeconds: overrides?.positionSeconds ?? currentTime,
     }).catch(() => {});
-    setTimeout(() => { applyingRemoteRef.current = false; }, 500);
   }
 
   // ── Room sync: push local playback changes to the room row ──
@@ -190,7 +207,6 @@ export default function App() {
     const supabase = createClient();
     const channel = supabase.channel(`room-${activeRoom.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${activeRoom.id}` }, payload => {
-        if (applyingRemoteRef.current) return; // our own echo — already applied locally
         const row = payload.new as any;
         applyRoomSnapshot({
           queue: row.queue ?? [],
@@ -202,6 +218,12 @@ export default function App() {
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${activeRoom.id}` }, () => {
         setActiveRoom(null);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${activeRoom.id}` }, () => {
+        // Membership changed (someone joined/left) — refresh just the member list.
+        fetchRoomRemote(activeRoom.id).then(fresh => {
+          if (fresh) setActiveRoom(prev => prev ? { ...prev, members: fresh.members } : prev);
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };

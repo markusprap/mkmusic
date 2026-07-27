@@ -52,5 +52,7 @@ create policy "delete own account room members" on room_members
     select 1 from rooms where rooms.id = room_members.room_id and rooms.account_id = auth.uid()
   ));
 
--- Required for the client to receive live UPDATE/DELETE events on `rooms`.
+-- Required for the client to receive live UPDATE/DELETE events on `rooms`
+-- and INSERT/DELETE events on `room_members` (so member lists update live).
 alter publication supabase_realtime add table rooms;
+alter publication supabase_realtime add table room_members;

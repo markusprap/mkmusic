@@ -5,6 +5,7 @@ import {
   saveActiveId, loadActiveId,
 } from '@/lib/store';
 import { useState, useEffect } from 'react';
+import ConfirmModal from './ConfirmModal';
 
 const COLORS = ['#1db954', '#e91e8c', '#2196f3', '#ff9800', '#9c27b0', '#f44336'];
 const AVATARS = ['🎵', '🎸', '🎹', '🎺', '🎻', '🥁'];
@@ -69,6 +70,7 @@ export default function ProfileSelect({ onSelect }: Props) {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [formError, setFormError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState(false);
@@ -158,7 +160,7 @@ export default function ProfileSelect({ onSelect }: Props) {
   }
 
   async function handleDeleteFromEdit() {
-    if (!editTarget || !confirm(`Hapus profil ${editTarget.name}? Semua playlist & lagu disukai ikut terhapus.`)) return;
+    if (!editTarget) return;
     setBusy(true);
     const ok = await deleteProfileRemote(editTarget.id, editPinVerified);
     setBusy(false);
@@ -230,10 +232,18 @@ export default function ProfileSelect({ onSelect }: Props) {
           <button onClick={handleSaveEdit} disabled={busy} style={primaryBtn}>Simpan</button>
           <button onClick={closeEdit} style={outlineBtn}>Batal</button>
         </div>
-        <button onClick={handleDeleteFromEdit} disabled={busy}
+        <button onClick={() => setShowDeleteConfirm(true)} disabled={busy}
           style={{ ...outlineBtn, color: '#f44336', borderColor: 'rgba(244,67,54,.4)' }}>
           Hapus Profil
         </button>
+        {showDeleteConfirm && editTarget && (
+          <ConfirmModal
+            message={`Hapus profil ${editTarget.name}? Semua playlist & lagu disukai ikut terhapus.`}
+            confirmLabel="Hapus" danger
+            onConfirm={handleDeleteFromEdit}
+            onClose={() => setShowDeleteConfirm(false)}
+          />
+        )}
       </div>
     );
   }
