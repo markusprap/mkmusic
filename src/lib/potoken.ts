@@ -1,22 +1,28 @@
-import { Innertube, Platform } from 'youtubei.js';
-import { BotGuardClient } from 'bgutils-js/botguard';
-import { WebPoMinter } from 'bgutils-js/webpo';
-import { buildURL, getHeaders } from 'bgutils-js/utils';
+import type { Innertube as InnertubeType } from 'youtubei.js';
+import type { WebPoMinter as WebPoMinterType } from 'bgutils-js/webpo';
+
 // jsdom is pinned to exactly 27.3.0 in package.json — 27.4.0+ pulls in
-// html-encoding-sniffer@6, which requires the ESM-only @exodus/bytes via
-// require(), breaking on Vercel's serverless runtime (ERR_REQUIRE_ESM).
-import { JSDOM } from 'jsdom';
-
-Platform.shim.eval = async (data: { output: string }) => new Function(data.output)();
-
-// ponytail: sets globals once per warm serverless instance so BotGuard's
-// challenge script (which expects a browser) can run. Known ceiling: this
-// mutates the shared Node process's globalThis — if other server code in the
-// same warm instance starts checking `typeof window` and misbehaves, split
-// this into an isolated service instead of sharing the process.
-let cached: { innertube: Innertube; minter: WebPoMinter } | null = null;
+// html-encoding-sniffer@6, which requires the ESM-only @exodus/bytes.
+//
+// All of youtubei.js/bgutils-js/jsdom are dynamically imported (not static
+// top-level imports) because Next.js's serverless runtime loads route
+// modules via require(), and a static import here would force that same
+// require() chain down through these packages' own ESM-only transitive
+// dependencies too (e.g. cssstyle -> @asamuzakjp/css-color -> @csstools/
+// css-calc, which ships ESM-only). Dynamic import() lets Node resolve each
+// package correctly regardless of what format it — or its dependencies —
+// ship in.
+let cached: { innertube: InnertubeType; minter: WebPoMinterType } | null = null;
 
 async function setup() {
+  const { Innertube, Platform } = await import('youtubei.js');
+  const { BotGuardClient } = await import('bgutils-js/botguard');
+  const { WebPoMinter } = await import('bgutils-js/webpo');
+  const { buildURL, getHeaders } = await import('bgutils-js/utils');
+  const { JSDOM } = await import('jsdom');
+
+  Platform.shim.eval = async (data: { output: string }) => new Function(data.output)();
+
   const innertube = await Innertube.create({ generate_session_locally: true });
 
   const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', {
