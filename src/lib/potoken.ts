@@ -2,6 +2,9 @@ import { Innertube, Platform } from 'youtubei.js';
 import { BotGuardClient } from 'bgutils-js/botguard';
 import { WebPoMinter } from 'bgutils-js/webpo';
 import { buildURL, getHeaders } from 'bgutils-js/utils';
+// jsdom is pinned to exactly 27.3.0 in package.json — 27.4.0+ pulls in
+// html-encoding-sniffer@6, which requires the ESM-only @exodus/bytes via
+// require(), breaking on Vercel's serverless runtime (ERR_REQUIRE_ESM).
 import { JSDOM } from 'jsdom';
 
 Platform.shim.eval = async (data: { output: string }) => new Function(data.output)();
