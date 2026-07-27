@@ -33,6 +33,22 @@ let trackCache: Record<string, Track> = {};
 export function cacheTrack(t: Track) { trackCache[t.id] = t; }
 export function getTrack(id: string): Track | undefined { return trackCache[id]; }
 
+// Fetches metadata for track IDs missing from the cache (e.g. a profile's
+// recent/liked IDs right after loading, before anything's been played this
+// session) and caches the results. Returns nothing — callers re-render to
+// pick up the now-populated cache via getTrack().
+export async function hydrateTracks(ids: string[]): Promise<void> {
+  const missing = [...new Set(ids)].filter(id => !trackCache[id]).slice(0, 50);
+  if (missing.length === 0) return;
+  try {
+    const res = await fetch(`/api/tracks?ids=${missing.join(',')}`);
+    const data = await res.json();
+    (data.tracks ?? []).forEach(cacheTrack);
+  } catch {
+    // best-effort — missing tracks just stay absent from these lists
+  }
+}
+
 // Normalize profile objects
 export function normalizeProfile(p: any): Profile {
   return {

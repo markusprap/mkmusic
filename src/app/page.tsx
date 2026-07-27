@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Track, Profile,
-  addRecent, cacheTrack, syncProfile,
+  addRecent, cacheTrack, syncProfile, hydrateTracks,
 } from '@/lib/store';
 import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote, fetchRoomRemote } from '@/lib/rooms';
 import { extractColor } from '@/lib/colorExtract';
@@ -56,8 +56,16 @@ export default function App() {
   // No auto-restore across reloads by design: PIN is required every time a profile is selected.
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
 
+  const [, setCacheTick] = useState(0);
+
   function handleProfileSelect(p: Profile) {
     setActiveProfile(p);
+    // Liked/recent/playlist tracks are referenced by ID only — the track
+    // cache is in-memory and empty on a fresh load, so without this,
+    // "Baru Diputar"/"Lagu Disukai"/playlists render empty until something
+    // gets played this session. Hydrate once, then re-render to pick it up.
+    const ids = [...p.recentIds, ...p.likedIds, ...p.playlists.flatMap(pl => pl.trackIds)];
+    hydrateTracks(ids).then(() => setCacheTick(t => t + 1));
   }
 
   function handleProfileChange(updated: Profile) {
