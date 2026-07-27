@@ -125,6 +125,7 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
           style={{background:`linear-gradient(180deg,rgba(${dynamicRgb},.35) 0%,#121212 100%)`}}/>
         <h1 style={{fontSize:'clamp(26px,4vw,40px)',fontWeight:900,marginBottom:24}}>{greeting}, {profile.name} 👋</h1>
 
+        <h2 className="section-title" style={{marginBottom:12}}>Pilihan Cepat</h2>
         {loadingQuick ? (
           <div className="quick-grid">
             {Array(6).fill(0).map((_,i)=><div key={i} className="skeleton" style={{height:60,borderRadius:6}}/>)}
