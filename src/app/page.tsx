@@ -25,6 +25,7 @@ import ExpandedPlayer from '@/components/ExpandedPlayer';
 import Credits from '@/components/Credits';
 import SupportBanner from '@/components/SupportBanner';
 import JoinRoomModal from '@/components/JoinRoomModal';
+import RoomCreatedModal from '@/components/RoomCreatedModal';
 import Artist from '@/components/Artist';
 import Album from '@/components/Album';
 
@@ -36,7 +37,7 @@ export default function App() {
   // ── Splash screen — shown briefly on every load, like Spotify's launch animation ──
   const [showSplash, setShowSplash] = useState(true);
   useEffect(() => {
-    const t = setTimeout(() => setShowSplash(false), 1200);
+    const t = setTimeout(() => setShowSplash(false), 2000);
     return () => clearTimeout(t);
   }, []);
 
@@ -130,6 +131,7 @@ export default function App() {
   // ── Room (synced listening) ──────────────────
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
+  const [showRoomCreated, setShowRoomCreated] = useState<string | null>(null);
   const applyingRemoteRef = useRef(false);
   // Mirrors of the latest player state, kept fresh every render so the
   // realtime subscription's callback (set up once per room, not per render)
@@ -261,7 +263,7 @@ export default function App() {
   async function handleCreateRoom() {
     if (!activeProfile) return;
     const room = await createRoomRemote(activeProfile.id, queue, currentIndex, isPlaying, currentTime);
-    if (room) setActiveRoom(room);
+    if (room) { setActiveRoom(room); setShowRoomCreated(room.code); }
   }
 
   async function submitJoinRoom(code: string): Promise<string | void> {
@@ -561,6 +563,7 @@ export default function App() {
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
       <SupportBanner />
       {showJoinRoom && <JoinRoomModal onJoin={submitJoinRoom} onClose={() => setShowJoinRoom(false)} />}
+      {showRoomCreated && <RoomCreatedModal code={showRoomCreated} onClose={() => setShowRoomCreated(null)} />}
 
       {/* Mobile Bottom Nav */}
       <BottomNav activeTab={activeTab} onChange={setActiveTab} />
