@@ -37,7 +37,7 @@ export default function App() {
   // ── Splash screen — shown briefly on every load, like Spotify's launch animation ──
   const [showSplash, setShowSplash] = useState(true);
   useEffect(() => {
-    const t = setTimeout(() => setShowSplash(false), 2000);
+    const t = setTimeout(() => setShowSplash(false), 4000);
     return () => clearTimeout(t);
   }, []);
 
