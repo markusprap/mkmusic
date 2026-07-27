@@ -136,17 +136,18 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
         <h2 className="section-title" style={{marginBottom:12}}>Pilihan Cepat</h2>
         {loadingQuick ? (
           <div className="quick-grid">
-            {Array(6).fill(0).map((_,i)=><div key={i} className="skeleton" style={{height:60,width:260,flexShrink:0,borderRadius:6}}/>)}
+            {Array(6).fill(0).map((_,i)=><div key={i} className="skeleton" style={{height:60,borderRadius:6}}/>)}
           </div>
         ) : (
           <div className="quick-grid">
             {quickPicks.map(t=>(
               <div key={t.id} className="quick-card" onClick={()=>onPlay(t, quickPicks)}>
                 <img src={t.thumbnail} alt={t.title}/>
-                <span className="quick-name">{t.title}</span>
-                <div className="quick-play-btn">
-                  <svg width="14" height="14" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                <div className="quick-info">
+                  <span className="quick-name">{t.title}</span>
+                  <span className="quick-sub">{t.artist}</span>
                 </div>
+                <TrackMenu className="quick-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
               </div>
             ))}
           </div>
