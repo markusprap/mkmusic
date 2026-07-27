@@ -99,17 +99,15 @@ export default function Player(props: Props) {
     };
   }, [ytReady]); // eslint-disable-line
 
-  // Load new video when track changes
+  // Load new video when track changes. loadVideoById() autoplays on its own
+  // per the YT IFrame API — no extra delayed playVideo() call needed, and
+  // one fired via setTimeout would be disconnected from the tap's gesture
+  // context, which mobile browsers are more likely to block.
   useEffect(() => {
     if (!track || !ytPlayerRef.current) return;
     try {
       if (typeof ytPlayerRef.current.loadVideoById === 'function') {
         ytPlayerRef.current.loadVideoById(track.id);
-        if (isPlaying) {
-          setTimeout(() => {
-            ytPlayerRef.current?.playVideo?.();
-          }, 150);
-        }
       }
     } catch (err) {
       console.error('[mkmusic] loadVideoById error:', err);

@@ -64,7 +64,7 @@ export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchCh
             <circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/>
           </svg>
         </button>
-        <div style={{position:'relative'}}>
+        <div className="topbar-profile-btn" style={{position:'relative'}}>
           <button onClick={() => setShowMenu(m => !m)} title={profile.name}
             style={{width:32,height:32,borderRadius:'50%',background:profile.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>
             {profile.avatar}
