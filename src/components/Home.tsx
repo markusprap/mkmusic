@@ -17,7 +17,7 @@ const MOODS = [
 interface HomeSection { title: string; items: HomeItem[] }
 interface HomeItem {
   type: string; id: string; videoId: string | null; playlistId: string | null;
-  name: string; artist: string; thumbnail: string;
+  name: string; artist: string; artistId?: string | null; thumbnail: string;
 }
 
 interface Props {
@@ -28,9 +28,12 @@ interface Props {
   onPlay: (t: Track, queue: Track[]) => void;
   onSearch: (q: string) => void;
   onProfileChange: (p: Profile) => void;
+  onAddToQueue: (t: Track) => void;
+  onOpenArtist: (id: string) => void;
+  onOpenAlbum: (id: string) => void;
 }
 
-export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onPlay, onSearch, onProfileChange }: Props) {
+export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onPlay, onSearch, onProfileChange, onAddToQueue, onOpenArtist, onOpenAlbum }: Props) {
   const [sections, setSections] = useState<HomeSection[]>([]);
   const [quickPicks, setQuickPicks] = useState<Track[]>([]);
   const [forYou, setForYou] = useState<Track[]>([]);
@@ -83,7 +86,12 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
 
   // Convert HomeItem to Track and play
   function playHomeItem(item: HomeItem, allItems: HomeItem[]) {
-    if (!item.videoId) { onSearch(item.name); return; }
+    if (!item.videoId) {
+      if (item.type === 'ARTIST') onOpenArtist(item.id);
+      else if (item.type === 'ALBUM') onOpenAlbum(item.id);
+      else onSearch(item.name);
+      return;
+    }
     const track: Track = {
       id: item.videoId,
       title: item.name,
@@ -149,7 +157,7 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
                   <img src={t.thumbnail} alt={t.title}/>
                   <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
                 </div>
-                <TrackMenu className="card-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
+                <TrackMenu className="card-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
                 <div className="card-title">{t.title}</div>
                 <div className="card-sub">{t.artist}</div>
               </div>
@@ -171,7 +179,7 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
                   <img src={t.thumbnail} alt={t.title}/>
                   <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
                 </div>
-                <TrackMenu className="card-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
+                <TrackMenu className="card-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
                 <div className="card-title">{t.title}</div>
                 <div className="card-sub">{t.artist}</div>
               </div>
@@ -201,7 +209,7 @@ export default function Home({ profile, currentTrack, isPlaying, dynamicRgb, onP
                   <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
                 </div>
                 {item.videoId && (
-                  <TrackMenu className="card-menu" profile={profile} onProfileChange={onProfileChange}
+                  <TrackMenu className="card-menu" profile={profile} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue}
                     track={{ id: item.videoId, title: item.name, artist: item.artist, thumbnail: item.thumbnail, duration: 0 }} />
                 )}
                 <div className="card-title">{item.name}</div>

@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
-import { searchYouTubeTracks } from '@/lib/youtube';
+import { searchYouTubeTracks, searchYouTubeArtists, searchYouTubeAlbums, searchYouTubePlaylists } from '@/lib/youtube';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
   if (!q) {
-    return NextResponse.json({ tracks: [] });
+    return NextResponse.json({ tracks: [], artists: [], albums: [], playlists: [] });
   }
 
-  const tracks = await searchYouTubeTracks(q);
-  return NextResponse.json({ tracks });
+  // Categorized like Spotify/YT Music search (songs/artists/albums/playlists
+  // as separate result sets, not one list with fake categories derived from it).
+  const [tracks, artists, albums, playlists] = await Promise.all([
+    searchYouTubeTracks(q),
+    searchYouTubeArtists(q),
+    searchYouTubeAlbums(q),
+    searchYouTubePlaylists(q),
+  ]);
+  return NextResponse.json({ tracks, artists, albums, playlists });
 }

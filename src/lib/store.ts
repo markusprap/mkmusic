@@ -2,8 +2,15 @@ export interface Track {
   id: string;
   title: string;
   artist: string;
+  artistId?: string;
   thumbnail: string;
   duration: number;
+}
+
+export function formatDuration(s: number): string {
+  if (!s) return '–';
+  const m = Math.floor(s / 60), sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
 // Public profile fields only — no PIN, safe to show on the "who's listening" screen.

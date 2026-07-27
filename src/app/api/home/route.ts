@@ -16,6 +16,7 @@ export async function GET() {
         playlistId: item.playlistId ?? null,
         name: item.name ?? item.title ?? 'Unknown',
         artist: item.artist?.name ?? item.artists ?? '',
+        artistId: item.type === 'ARTIST' ? (item.artistId ?? null) : (item.artist?.artistId ?? null),
         thumbnail: item.thumbnails?.[0]?.url ?? item.thumbnail ?? '',
       })).filter((item: any) => item.id && item.thumbnail),
     })).filter((s: any) => s.items.length > 0);

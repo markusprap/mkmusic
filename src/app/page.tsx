@@ -7,6 +7,7 @@ import {
 import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote, fetchRoomRemote } from '@/lib/rooms';
 import { extractColor } from '@/lib/colorExtract';
 
+import Splash from '@/components/Splash';
 import Welcome from '@/components/Welcome';
 import Login from '@/components/Login';
 import ProfileSelect from '@/components/ProfileSelect';
@@ -22,13 +23,23 @@ import Queue from '@/components/Queue';
 import Player from '@/components/Player';
 import ExpandedPlayer from '@/components/ExpandedPlayer';
 import Credits from '@/components/Credits';
+import SupportBanner from '@/components/SupportBanner';
 import JoinRoomModal from '@/components/JoinRoomModal';
+import Artist from '@/components/Artist';
+import Album from '@/components/Album';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
 interface PlayerControl { seekTo: (s: number) => void; setVolume: (v: number) => void; pause: () => void; play: () => void }
 
 export default function App() {
+  // ── Splash screen — shown briefly on every load, like Spotify's launch animation ──
+  const [showSplash, setShowSplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   // ── First-visit welcome screen ────────────────
   const [welcomeChecked, setWelcomeChecked] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -73,6 +84,11 @@ export default function App() {
     syncProfile(updated).catch(() => {});
   }
 
+  function handleAddToQueue(t: Track) {
+    cacheTrack(t);
+    setQueue(q => [...q, t]);
+  }
+
   function handleSwitchProfile() {
     if (activeRoom && activeProfile) leaveRoomRemote(activeRoom.id, activeProfile.id).catch(() => {});
     setActiveRoom(null);
@@ -91,6 +107,11 @@ export default function App() {
   const [showCredits, setShowCredits] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [searchQuery, setSearchQuery] = useState('');
+  // Artist/Album detail view — overlays the active tab instead of being one,
+  // since it can be opened from any of them (Home, Search, Library).
+  const [detailView, setDetailView] = useState<{ type: 'artist' | 'album'; id: string } | null>(null);
+  function openArtist(id: string) { if (id) setDetailView({ type: 'artist', id }); }
+  function openAlbum(id: string) { if (id) setDetailView({ type: 'album', id }); }
 
   // ── Player State ─────────────────────────────
   const [queue, setQueue] = useState<Track[]>([]);
@@ -358,7 +379,7 @@ export default function App() {
     if (q) setActiveTab('search');
   }
 
-  if (!welcomeChecked || !sessionChecked) return null;
+  if (showSplash || !welcomeChecked || !sessionChecked) return <Splash />;
   if (showWelcome) {
     return <Welcome onStart={() => { localStorage.setItem('mkmusic_welcomed', '1'); setShowWelcome(false); }} />;
   }
@@ -415,42 +436,79 @@ export default function App() {
 
         {/* Main content */}
         <main className="main-content">
-          {activeTab === 'home' && (
-            <Home
-              profile={activeProfile}
-              currentTrack={currentTrack}
-              isPlaying={isPlaying}
-              dynamicRgb={dynamicRgb}
-              onPlay={playTrack}
-              onSearch={q => { setSearchQuery(q); setActiveTab('search'); }}
-              onProfileChange={handleProfileChange}
-            />
-          )}
-          {activeTab === 'search' && (
-            <Search
-              query={searchQuery}
+          {detailView?.type === 'artist' ? (
+            <Artist
+              artistId={detailView.id}
               profile={activeProfile}
               currentTrack={currentTrack}
               isPlaying={isPlaying}
               onPlay={playTrack}
               onProfileChange={handleProfileChange}
-              onCategoryClick={q => { setSearchQuery(q); }}
+              onAddToQueue={handleAddToQueue}
+              onOpenArtist={openArtist}
+              onOpenAlbum={openAlbum}
+              onBack={() => setDetailView(null)}
             />
-          )}
-          {activeTab === 'discover' && (
-            <Discover
-              onPlay={playTrack}
-              onSearch={q => { setSearchQuery(q); setActiveTab('search'); }}
-            />
-          )}
-          {activeTab === 'library' && (
-            <Library
+          ) : detailView?.type === 'album' ? (
+            <Album
+              albumId={detailView.id}
               profile={activeProfile}
               currentTrack={currentTrack}
               isPlaying={isPlaying}
               onPlay={playTrack}
               onProfileChange={handleProfileChange}
+              onAddToQueue={handleAddToQueue}
+              onOpenArtist={openArtist}
+              onBack={() => setDetailView(null)}
             />
+          ) : (
+            <>
+              {activeTab === 'home' && (
+                <Home
+                  profile={activeProfile}
+                  currentTrack={currentTrack}
+                  isPlaying={isPlaying}
+                  dynamicRgb={dynamicRgb}
+                  onPlay={playTrack}
+                  onSearch={q => { setSearchQuery(q); setActiveTab('search'); }}
+                  onProfileChange={handleProfileChange}
+                  onAddToQueue={handleAddToQueue}
+                  onOpenArtist={openArtist}
+                  onOpenAlbum={openAlbum}
+                />
+              )}
+              {activeTab === 'search' && (
+                <Search
+                  query={searchQuery}
+                  profile={activeProfile}
+                  currentTrack={currentTrack}
+                  isPlaying={isPlaying}
+                  onPlay={playTrack}
+                  onProfileChange={handleProfileChange}
+                  onCategoryClick={q => { setSearchQuery(q); }}
+                  onAddToQueue={handleAddToQueue}
+                  onOpenArtist={openArtist}
+                  onOpenAlbum={openAlbum}
+                />
+              )}
+              {activeTab === 'discover' && (
+                <Discover
+                  onPlay={playTrack}
+                  onSearch={q => { setSearchQuery(q); setActiveTab('search'); }}
+                />
+              )}
+              {activeTab === 'library' && (
+                <Library
+                  profile={activeProfile}
+                  currentTrack={currentTrack}
+                  isPlaying={isPlaying}
+                  onPlay={playTrack}
+                  onProfileChange={handleProfileChange}
+                  onAddToQueue={handleAddToQueue}
+                  onOpenArtist={openArtist}
+                />
+              )}
+            </>
           )}
         </main>
 
@@ -501,6 +559,7 @@ export default function App() {
       </div>
 
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
+      <SupportBanner />
       {showJoinRoom && <JoinRoomModal onJoin={submitJoinRoom} onClose={() => setShowJoinRoom(false)} />}
 
       {/* Mobile Bottom Nav */}

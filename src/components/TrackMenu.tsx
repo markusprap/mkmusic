@@ -7,15 +7,21 @@ interface Props {
   profile: Profile;
   track: Track;
   onProfileChange: (p: Profile) => void;
+  onAddToQueue?: (t: Track) => void;
   className?: string;
 }
 
-export default function TrackMenu({ profile, track, onProfileChange, className }: Props) {
+export default function TrackMenu({ profile, track, onProfileChange, onAddToQueue, className }: Props) {
   const [open, setOpen] = useState(false);
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
 
   function addTo(playlistId: string) {
     onProfileChange(addToPlaylist(profile, playlistId, track.id));
+    setOpen(false);
+  }
+
+  function addToQueue() {
+    onAddToQueue?.(track);
     setOpen(false);
   }
 
@@ -41,6 +47,7 @@ export default function TrackMenu({ profile, track, onProfileChange, className }
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 399 }} onClick={() => setOpen(false)} />
           <div className="ctx-menu" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, left: 'auto' }}>
+            {onAddToQueue && <div className="ctx-item" onClick={addToQueue}>Tambahkan ke Antrian</div>}
             <div className="ctx-item" style={{ opacity: .6, cursor: 'default' }}>Tambah ke playlist</div>
             {(profile?.playlists || []).map(pl => (
               <div key={pl.id} className="ctx-item" onClick={() => addTo(pl.id)}>{pl.name}</div>

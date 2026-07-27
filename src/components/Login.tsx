@@ -167,13 +167,20 @@ export default function Login() {
           </button>
         </div>
       )}
+
+      <p style={{ marginTop: 32, color: '#727272', fontSize: 12, textAlign: 'center' }}>
+        Made just for you — by{' '}
+        <a href="https://www.instagram.com/markusprap/" target="_blank" rel="noopener noreferrer" style={{ color: '#b3b3b3' }}>
+          Markus Prap Kurniawan
+        </a>
+      </p>
     </div>
   );
 }
 
 const screenStyle: React.CSSProperties = {
   minHeight: '100vh', background: '#121212', display: 'flex', flexDirection: 'column',
-  alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'Inter,sans-serif',
+  alignItems: 'center', padding: '48px 24px', fontFamily: 'Inter,sans-serif', overflowY: 'auto',
 };
 
 const inputStyle: React.CSSProperties = {

@@ -1,5 +1,5 @@
 'use client';
-import { Track, Profile, Playlist, getTrack, toggleLike, createPlaylist, removeFromPlaylist } from '@/lib/store';
+import { Track, Profile, Playlist, getTrack, toggleLike, createPlaylist, removeFromPlaylist, formatDuration } from '@/lib/store';
 import { useState } from 'react';
 import TrackMenu from './TrackMenu';
 import NamePromptModal from './NamePromptModal';
@@ -12,9 +12,11 @@ interface Props {
   isPlaying: boolean;
   onPlay: (t: Track, queue: Track[]) => void;
   onProfileChange: (p: Profile) => void;
+  onAddToQueue: (t: Track) => void;
+  onOpenArtist: (id: string) => void;
 }
 
-export default function Library({ profile, currentTrack, isPlaying, onPlay, onProfileChange }: Props) {
+export default function Library({ profile, currentTrack, isPlaying, onPlay, onProfileChange, onAddToQueue, onOpenArtist }: Props) {
   const [tab, setTab] = useState<LibTab>('songs');
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
@@ -23,12 +25,6 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
   const playlists = profile?.playlists || [];
 
   const likedTracks = likedIds.map(id => getTrack(id)).filter(Boolean) as Track[];
-
-  function formatDur(s: number) {
-    if (!s) return '–';
-    const m = Math.floor(s / 60), sec = s % 60;
-    return `${m}:${sec.toString().padStart(2,'0')}`;
-  }
 
   const liked = (id: string) => likedIds.includes(id);
 
@@ -93,8 +89,8 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
                     <button className="track-like icon-btn" title="Hapus dari playlist" onClick={e => { e.stopPropagation(); handleRemoveFromPlaylist(t.id); }}>
                       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
-                    <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
-                    <div className="track-dur">{formatDur(t.duration)}</div>
+                    <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
+                    <div className="track-dur">{formatDuration(t.duration)}</div>
                   </div>
                 );
               })}
@@ -162,8 +158,8 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                       </svg>
                     </button>
-                    <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
-                    <div className="track-dur">{formatDur(t.duration)}</div>
+                    <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
+                    <div className="track-dur">{formatDuration(t.duration)}</div>
                   </div>
                 );
               })}
@@ -213,7 +209,7 @@ export default function Library({ profile, currentTrack, isPlaying, onPlay, onPr
           ) : (
             <div className="card-grid">
               {artists.map(t => (
-                <div key={t.artist} className="card">
+                <div key={t.artist} className="card" onClick={() => t.artistId && onOpenArtist(t.artistId)}>
                   <div className="card-img-wrap circle">
                     <img src={t.thumbnail} alt={t.artist} />
                     <div className="card-play"><svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>

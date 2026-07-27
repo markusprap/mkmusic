@@ -1,9 +1,10 @@
 'use client';
-import { Track, Profile, cacheTrack, toggleLike } from '@/lib/store';
+import { Track, Profile, cacheTrack, toggleLike, formatDuration } from '@/lib/store';
+import type { ArtistResult, AlbumResult, PlaylistResult } from '@/lib/youtube';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import TrackMenu from './TrackMenu';
 
-type SearchTab = 'songs' | 'albums' | 'artists';
+type SearchTab = 'songs' | 'artists' | 'albums' | 'playlists';
 
 const CATEGORIES = [
   { name: 'Pop', color: '#e91e8c', query: 'pop hits' },
@@ -27,11 +28,17 @@ interface Props {
   isPlaying: boolean;
   onPlay: (t: Track, queue: Track[]) => void;
   onProfileChange: (p: Profile) => void;
+  onAddToQueue: (t: Track) => void;
   onCategoryClick: (q: string) => void;
+  onOpenArtist: (id: string) => void;
+  onOpenAlbum: (id: string) => void;
 }
 
-export default function Search({ query, profile, currentTrack, isPlaying, onPlay, onProfileChange, onCategoryClick }: Props) {
-  const [results, setResults] = useState<Track[]>([]);
+export default function Search({ query, profile, currentTrack, isPlaying, onPlay, onProfileChange, onCategoryClick, onAddToQueue, onOpenArtist, onOpenAlbum }: Props) {
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [artists, setArtists] = useState<ArtistResult[]>([]);
+  const [albums, setAlbums] = useState<AlbumResult[]>([]);
+  const [playlists, setPlaylists] = useState<PlaylistResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>('songs');
   const lastQuery = useRef('');
@@ -43,10 +50,17 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      const tracks: Track[] = data.tracks ?? [];
-      tracks.forEach(cacheTrack);
-      setResults(tracks);
-    } catch { setResults([]); } finally { setLoading(false); }
+      const t: Track[] = data.tracks ?? [];
+      t.forEach(cacheTrack);
+      setTracks(t);
+      setArtists(data.artists ?? []);
+      setAlbums(data.albums ?? []);
+      setPlaylists(data.playlists ?? []);
+    } catch {
+      setTracks([]); setArtists([]); setAlbums([]); setPlaylists([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { if (query) doSearch(query); }, [query, doSearch]);
@@ -58,11 +72,6 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
     onProfileChange(toggleLike(profile, track.id));
   }
 
-  function formatDur(s: number) {
-    if (!s) return '–';
-    const m = Math.floor(s / 60), sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  }
 
   // No query — show categories
   if (!query) {
@@ -86,7 +95,13 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
     );
   }
 
-  const topResult = results[0];
+  const topResult = tracks[0];
+  const TABS: { id: SearchTab; label: string; count: number }[] = [
+    { id: 'songs', label: 'Lagu', count: tracks.length },
+    { id: 'artists', label: 'Artis', count: artists.length },
+    { id: 'albums', label: 'Album', count: albums.length },
+    { id: 'playlists', label: 'Playlist', count: playlists.length },
+  ];
 
   return (
     <div className="main-content-inner animate-in">
@@ -98,7 +113,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
       {!loading && topResult && (
         <div className="section">
           <h2 className="section-title" style={{marginBottom:12}}>Hasil Teratas</h2>
-          <div className="search-hero-card" onClick={() => onPlay(topResult, results)}>
+          <div className="search-hero-card" onClick={() => onPlay(topResult, tracks)}>
             <img className="search-hero-img" src={topResult.thumbnail} alt={topResult.title} />
             <div>
               <p style={{fontSize:13,color:'#b3b3b3',marginBottom:4}}>Lagu</p>
@@ -112,9 +127,9 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
       {/* Tabs */}
       <div style={{padding:'0 24px'}}>
         <div className="search-result-tabs">
-          {(['songs','albums','artists'] as SearchTab[]).map(tab => (
-            <button key={tab} className={`search-tab ${activeTab===tab?'active':''}`} onClick={() => setActiveTab(tab)}>
-              {tab === 'songs' ? 'Lagu' : tab === 'albums' ? 'Album' : 'Artis'}
+          {TABS.filter(t => loading || t.count > 0 || t.id === 'songs').map(tab => (
+            <button key={tab.id} className={`search-tab ${activeTab===tab.id?'active':''}`} onClick={() => setActiveTab(tab.id)}>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -139,11 +154,11 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
       {!loading && activeTab === 'songs' && (
         <div className="section">
           <div className="track-list">
-            {results.map((t, i) => {
+            {tracks.map((t, i) => {
               const isActive = currentTrack?.id === t.id;
               return (
                 <div key={t.id} className={`track-row ${isActive ? 'is-active' : ''}`}
-                  onClick={() => onPlay(t, results)}>
+                  onClick={() => onPlay(t, tracks)}>
                   <div className="track-num-cell">{isActive && isPlaying ? <div className="eq"><span/><span/><span/></div> : i+1}</div>
                   <div className="track-play-icon">
                     <svg width="14" height="14" fill={isActive?'#1db954':'currentColor'} viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
@@ -160,55 +175,73 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
                   </button>
-                  <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} />
-                  <div className="track-dur">{formatDur(t.duration)}</div>
+                  <TrackMenu className="track-menu" profile={profile} track={t} onProfileChange={onProfileChange} onAddToQueue={onAddToQueue} />
+                  <div className="track-dur">{formatDuration(t.duration)}</div>
                 </div>
               );
             })}
           </div>
-          {!loading && results.length === 0 && (
+          {tracks.length === 0 && (
             <p style={{color:'#b3b3b3',textAlign:'center',padding:'40px 0'}}>Tidak ada hasil untuk "{query}"</p>
           )}
         </div>
       )}
 
-      {/* Artists — derived from song artist names */}
+      {/* Artists — real searchArtists results */}
       {!loading && activeTab === 'artists' && (
         <div className="section">
           <div className="card-grid">
-            {[...new Map(results.map(t => [t.artist, t])).values()].slice(0,12).map(t => (
-              <div key={t.artist} className="card" onClick={() => onCategoryClick(t.artist)}>
+            {artists.map(a => (
+              <div key={a.id} className="card" onClick={() => onOpenArtist(a.id)}>
                 <div className="card-img-wrap circle">
-                  <img src={t.thumbnail} alt={t.artist} />
+                  <img src={a.thumbnail} alt={a.name} />
                   <div className="card-play">
                     <svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
                   </div>
                 </div>
-                <div className="card-title" style={{textAlign:'center'}}>{t.artist}</div>
+                <div className="card-title" style={{textAlign:'center'}}>{a.name}</div>
                 <div className="card-sub" style={{textAlign:'center'}}>Artis</div>
               </div>
             ))}
           </div>
+          {artists.length === 0 && <p style={{color:'#b3b3b3',textAlign:'center',padding:'40px 0'}}>Tidak ada artis ditemukan</p>}
         </div>
       )}
 
-      {/* Albums — group by artist as proxy */}
+      {/* Albums — real searchAlbums results */}
       {!loading && activeTab === 'albums' && (
         <div className="section">
           <div className="card-grid">
-            {results.slice(0, 12).map(t => (
-              <div key={t.id} className="card" onClick={() => onPlay(t, results)}>
+            {albums.map(a => (
+              <div key={a.id} className="card" onClick={() => onOpenAlbum(a.id)}>
                 <div className="card-img-wrap">
-                  <img src={t.thumbnail} alt={t.title} />
+                  <img src={a.thumbnail} alt={a.name} />
                   <div className="card-play">
                     <svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
                   </div>
                 </div>
-                <div className="card-title">{t.title}</div>
-                <div className="card-sub">{t.artist}</div>
+                <div className="card-title">{a.name}</div>
+                <div className="card-sub">{a.artist}{a.year ? ` · ${a.year}` : ''}</div>
               </div>
             ))}
           </div>
+          {albums.length === 0 && <p style={{color:'#b3b3b3',textAlign:'center',padding:'40px 0'}}>Tidak ada album ditemukan</p>}
+        </div>
+      )}
+
+      {/* Playlists — real searchPlaylists results */}
+      {!loading && activeTab === 'playlists' && (
+        <div className="section">
+          <div className="card-grid">
+            {playlists.map(p => (
+              <div key={p.id} className="card">
+                <div className="card-img-wrap"><img src={p.thumbnail} alt={p.name} /></div>
+                <div className="card-title">{p.name}</div>
+                <div className="card-sub">{p.artist || 'Playlist'}</div>
+              </div>
+            ))}
+          </div>
+          {playlists.length === 0 && <p style={{color:'#b3b3b3',textAlign:'center',padding:'40px 0'}}>Tidak ada playlist ditemukan</p>}
         </div>
       )}
     </div>

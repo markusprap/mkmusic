@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
   const results = await Promise.allSettled(ids.map(async id => {
     try {
       const song = await client.getSong(id);
-      return { id, title: song.name, artist: song.artist?.name ?? '', thumbnail: song.thumbnails?.[0]?.url ?? '', duration: song.duration ?? 0 };
+      return { id, title: song.name, artist: song.artist?.name ?? '', artistId: song.artist?.artistId ?? undefined, thumbnail: song.thumbnails?.[0]?.url ?? '', duration: song.duration ?? 0 };
     } catch {
       const video = await client.getVideo(id);
-      return { id, title: video.name, artist: video.artist?.name ?? '', thumbnail: video.thumbnails?.[0]?.url ?? '', duration: video.duration ?? 0 };
+      return { id, title: video.name, artist: video.artist?.name ?? '', artistId: video.artist?.artistId ?? undefined, thumbnail: video.thumbnails?.[0]?.url ?? '', duration: video.duration ?? 0 };
     }
   }));
 
