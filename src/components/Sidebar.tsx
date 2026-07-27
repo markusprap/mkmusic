@@ -1,5 +1,6 @@
 'use client';
 import { Profile, Track, getTrack } from '@/lib/store';
+import { Room } from '@/lib/rooms';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -13,9 +14,14 @@ interface Props {
   onToggleSidebar: () => void;
   onSwitchProfile: () => void;
   onShowCredits: () => void;
+  onSignOut: () => void;
+  activeRoom: Room | null;
+  onCreateRoom: () => void;
+  onJoinRoom: () => void;
+  onLeaveRoom: () => void;
 }
 
-export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits }: Props) {
+export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits, onSignOut, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
   const recentIds = profile?.recentIds || [];
   const likedIds = profile?.likedIds || [];
   const playlists = profile?.playlists || [];
@@ -113,6 +119,37 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
         )}
       </div>
 
+      {/* Room */}
+      <div className="sidebar-bottom" style={{paddingBottom: 0}}>
+        {activeRoom ? (
+          <div style={{background:'rgba(255,255,255,.06)', borderRadius:8, padding:'10px 12px', marginBottom:8}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <span style={{fontSize:11, color:'var(--text-2)', fontWeight:600}}>ROOM AKTIF</span>
+              <button onClick={onLeaveRoom} style={{background:'none', border:'none', color:'#f44336', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit'}}>
+                Keluar
+              </button>
+            </div>
+            <div style={{fontSize:18, fontWeight:800, letterSpacing:2, color:'#fff', margin:'4px 0'}}>{activeRoom.code}</div>
+            <div style={{display:'flex', gap:4}}>
+              {activeRoom.members.map(m => (
+                <div key={m.id} title={m.name} style={{width:24, height:24, borderRadius:'50%', background:m.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12}}>
+                  {m.avatar}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{display:'flex', gap:8, marginBottom:8}}>
+            <button className="lib-item" style={{...bottomBtnStyle, flex:1}} onClick={onCreateRoom} disabled={!currentTrack}>
+              Buat Room
+            </button>
+            <button className="lib-item" style={{...bottomBtnStyle, flex:1}} onClick={onJoinRoom}>
+              Gabung Room
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Profile */}
       <div className="sidebar-bottom">
         <div className="profile-card" onClick={onSwitchProfile}>
@@ -122,10 +159,17 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
             <div className="profile-sub">Ganti profil</div>
           </div>
         </div>
-        <button className="lib-item" style={{width:'100%',color:'var(--text-2)',fontSize:12,fontWeight:600,justifyContent:'center'}} onClick={onShowCredits}>
+        <button className="lib-item" style={bottomBtnStyle} onClick={onShowCredits}>
           Credits & Donasi
+        </button>
+        <button className="lib-item" style={bottomBtnStyle} onClick={onSignOut}>
+          Keluar Akun
         </button>
       </div>
     </nav>
   );
 }
+
+const bottomBtnStyle: React.CSSProperties = {
+  width: '100%', color: 'var(--text-2)', fontSize: 12, fontWeight: 600, justifyContent: 'center',
+};

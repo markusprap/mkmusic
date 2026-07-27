@@ -4,10 +4,13 @@ import {
   Track, Profile,
   addRecent, cacheTrack, syncProfile,
 } from '@/lib/store';
+import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote } from '@/lib/rooms';
 import { extractColor } from '@/lib/colorExtract';
 
 import Welcome from '@/components/Welcome';
+import Login from '@/components/Login';
 import ProfileSelect from '@/components/ProfileSelect';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import BottomNav from '@/components/BottomNav';
@@ -33,6 +36,21 @@ export default function App() {
     setWelcomeChecked(true);
   }, []);
 
+  // ── Account session ───────────────────────────
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setHasSession(!!data.user);
+      setSessionChecked(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(!!session?.user);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   // ── Profiles ─────────────────────────────────
   // No auto-restore across reloads by design: PIN is required every time a profile is selected.
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
@@ -44,6 +62,17 @@ export default function App() {
   function handleProfileChange(updated: Profile) {
     setActiveProfile(updated);
     syncProfile(updated).catch(() => {});
+  }
+
+  function handleSwitchProfile() {
+    if (activeRoom && activeProfile) leaveRoomRemote(activeRoom.id, activeProfile.id).catch(() => {});
+    setActiveRoom(null);
+    setActiveProfile(null);
+  }
+
+  function handleSignOut() {
+    handleSwitchProfile();
+    createClient().auth.signOut();
   }
 
   // ── Layout State ─────────────────────────────
@@ -67,6 +96,10 @@ export default function App() {
   const [autoplay, setAutoplay] = useState(true);
   const playerRef = useRef<PlayerControl>({ seekTo: () => {}, setVolume: () => {}, pause: () => {}, play: () => {} });
   const fetchedUpnextForId = useRef<string | null>(null);
+
+  // ── Room (synced listening) ──────────────────
+  const [activeRoom, setActiveRoom] = useState<Room | null>(null);
+  const applyingRemoteRef = useRef(false);
 
   const currentTrack = queue[currentIndex] ?? null;
 
@@ -109,6 +142,73 @@ export default function App() {
       document.documentElement.style.setProperty('--dynamic-rgb', rgb);
     });
   }, [currentTrack?.thumbnail]);
+
+  // Applies an incoming room state (from a fresh join or a realtime update)
+  // to local player state, extrapolating position from the snapshot's timestamp.
+  function applyRoomSnapshot(snapshot: { queue: Track[]; currentIndex: number; isPlaying: boolean; positionSeconds: number; positionUpdatedAt: string }) {
+    applyingRemoteRef.current = true;
+    snapshot.queue.forEach(cacheTrack);
+    setQueue(snapshot.queue);
+    setCurrentIndex(snapshot.currentIndex);
+    setIsPlaying(snapshot.isPlaying);
+    const elapsed = snapshot.isPlaying ? (Date.now() - new Date(snapshot.positionUpdatedAt).getTime()) / 1000 : 0;
+    const pos = snapshot.positionSeconds + elapsed;
+    setCurrentTime(pos);
+    playerRef.current.seekTo(pos);
+    setTimeout(() => { applyingRemoteRef.current = false; }, 0);
+  }
+
+  // ── Room sync: push local playback changes to the room row ──
+  useEffect(() => {
+    if (!activeRoom || applyingRemoteRef.current) return;
+    syncRoomRemote(activeRoom.id, { queue, currentIndex, isPlaying, positionSeconds: currentTime }).catch(() => {});
+    // currentTime intentionally excluded — synced explicitly on seek, not every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoom?.id, queue, currentIndex, isPlaying]);
+
+  // ── Room sync: mirror remote playback changes into local state ──
+  useEffect(() => {
+    if (!activeRoom) return;
+    const supabase = createClient();
+    const channel = supabase.channel(`room-${activeRoom.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${activeRoom.id}` }, payload => {
+        const row = payload.new as any;
+        applyRoomSnapshot({
+          queue: row.queue ?? [],
+          currentIndex: row.current_index,
+          isPlaying: row.is_playing,
+          positionSeconds: row.position_seconds,
+          positionUpdatedAt: row.position_updated_at,
+        });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${activeRoom.id}` }, () => {
+        setActiveRoom(null);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeRoom?.id]);
+
+  async function handleCreateRoom() {
+    if (!activeProfile) return;
+    const room = await createRoomRemote(activeProfile.id, queue, currentIndex, isPlaying, currentTime);
+    if (room) setActiveRoom(room);
+  }
+
+  async function handleJoinRoom() {
+    if (!activeProfile) return;
+    const code = window.prompt('Masukkan kode Room:');
+    if (!code) return;
+    const result = await joinRoomRemote(code, activeProfile.id);
+    if ('error' in result) { alert(result.error); return; }
+    applyRoomSnapshot(result);
+    setActiveRoom(result);
+  }
+
+  async function handleLeaveRoom() {
+    if (!activeRoom || !activeProfile) return;
+    await leaveRoomRemote(activeRoom.id, activeProfile.id);
+    setActiveRoom(null);
+  }
 
   // ── Play a track ─────────────────────────────
   const playTrack = useCallback((track: Track, newQueue: Track[]) => {
@@ -191,6 +291,9 @@ export default function App() {
   function handleSeek(s: number) {
     setCurrentTime(s);
     playerRef.current.seekTo(s);
+    if (activeRoom && !applyingRemoteRef.current) {
+      syncRoomRemote(activeRoom.id, { queue, currentIndex, isPlaying, positionSeconds: s }).catch(() => {});
+    }
   }
 
   function handleTimeUpdate(cur: number, dur: number) {
@@ -207,10 +310,11 @@ export default function App() {
     if (q) setActiveTab('search');
   }
 
-  if (!welcomeChecked) return null;
+  if (!welcomeChecked || !sessionChecked) return null;
   if (showWelcome) {
     return <Welcome onStart={() => { localStorage.setItem('mkmusic_welcomed', '1'); setShowWelcome(false); }} />;
   }
+  if (!hasSession) return <Login />;
 
   // Show profile select screen
   if (!activeProfile) {
@@ -235,8 +339,13 @@ export default function App() {
           currentTrack={currentTrack}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
-          onSwitchProfile={() => setActiveProfile(null)}
+          onSwitchProfile={handleSwitchProfile}
           onShowCredits={() => setShowCredits(true)}
+          onSignOut={handleSignOut}
+          activeRoom={activeRoom}
+          onCreateRoom={handleCreateRoom}
+          onJoinRoom={handleJoinRoom}
+          onLeaveRoom={handleLeaveRoom}
         />
 
         {/* TopBar */}
@@ -247,8 +356,14 @@ export default function App() {
           onSearchChange={handleSearchQuery}
           onSearchSubmit={handleSearchSubmit}
           profile={activeProfile}
-          onSwitchProfile={() => setActiveProfile(null)}
+          onSwitchProfile={handleSwitchProfile}
           onShowCredits={() => setShowCredits(true)}
+          onSignOut={handleSignOut}
+          currentTrack={currentTrack}
+          activeRoom={activeRoom}
+          onCreateRoom={handleCreateRoom}
+          onJoinRoom={handleJoinRoom}
+          onLeaveRoom={handleLeaveRoom}
         />
 
         {/* Main content */}

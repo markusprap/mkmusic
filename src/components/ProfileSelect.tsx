@@ -1,7 +1,7 @@
 'use client';
 import {
   Profile, PublicProfile,
-  fetchPublicProfiles, createProfileRemote, unlockProfile, deleteProfileRemote,
+  fetchPublicProfiles, createProfileRemote, unlockProfile, deleteProfileRemote, syncProfile,
   saveActiveId, loadActiveId,
 } from '@/lib/store';
 import { useState, useEffect } from 'react';
@@ -11,6 +11,29 @@ const AVATARS = ['🎵', '🎸', '🎹', '🎺', '🎻', '🥁'];
 const MAX_PROFILES = 5;
 
 interface Props { onSelect: (p: Profile) => void }
+
+function AvatarColorPicker({ avatar, setAvatar, color, setColor }: {
+  avatar: string; setAvatar: (a: string) => void; color: string; setColor: (c: string) => void;
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {AVATARS.map(a => (
+          <button key={a} onClick={() => setAvatar(a)}
+            style={{ width: 36, height: 36, borderRadius: 8, fontSize: 18, background: avatar === a ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.06)', border: avatar === a ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer' }}>
+            {a}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, margin: '0 0 14px' }}>
+        {COLORS.map(c => (
+          <button key={c} onClick={() => setColor(c)}
+            style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: color === c ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }} />
+        ))}
+      </div>
+    </>
+  );
+}
 
 function PinBoxes({ value }: { value: string }) {
   return (
@@ -36,7 +59,9 @@ export default function ProfileSelect({ onSelect }: Props) {
   const [creating, setCreating] = useState(false);
   const [managing, setManaging] = useState(false);
   const [unlockTarget, setUnlockTarget] = useState<PublicProfile | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PublicProfile | null>(null);
+  const [editTarget, setEditTarget] = useState<PublicProfile | null>(null);
+  const [editProfile, setEditProfile] = useState<Profile | null>(null);
+  const [editPinVerified, setEditPinVerified] = useState('');
 
   const [name, setName] = useState('');
   const [color, setColor] = useState(COLORS[0]);
@@ -87,32 +112,81 @@ export default function ProfileSelect({ onSelect }: Props) {
     loadList();
   }
 
-  async function handleDelete(value: string) {
-    if (!deleteTarget || value.length !== 4 || busy) return;
+  // Verifies the PIN once, then unlocks the edit screen for that profile —
+  // both saving changes and deleting reuse this already-verified PIN so the
+  // user isn't asked to type it twice.
+  async function submitEditPin(value: string) {
+    if (!editTarget || value.length !== 4 || busy) return;
     setBusy(true);
-    const ok = await deleteProfileRemote(deleteTarget.id, value);
+    const result = await unlockProfile(editTarget.id, value);
     setBusy(false);
-    if (!ok) { setPinError(true); setPin(''); setTimeout(() => setPinError(false), 500); return; }
-    setDeleteTarget(null);
+    if ('error' in result) {
+      setPinError(true);
+      setPin('');
+      setTimeout(() => setPinError(false), 500);
+      return;
+    }
+    setEditProfile(result.profile);
+    setEditPinVerified(value);
+    setName(result.profile.name);
+    setColor(result.profile.color);
+    setAvatar(result.profile.avatar);
     setPin('');
+  }
+
+  async function handleSaveEdit() {
+    if (!editProfile) return;
+    setFormError('');
+    if (!name.trim()) return setFormError('Nama wajib diisi');
+    if (newPin && (!/^\d{4}$/.test(newPin) || newPin !== confirmPin)) {
+      return setFormError('PIN baru harus 4 digit dan cocok dengan konfirmasi');
+    }
+    setBusy(true);
+    const ok = await syncProfile({ ...editProfile, name: name.trim(), color, avatar });
+    setBusy(false);
+    if (!ok) return setFormError('Gagal menyimpan');
+    if (newPin) {
+      const res = await fetch(`/api/profiles/${editProfile.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPin: editPinVerified, newPin }),
+      });
+      if (!res.ok) { setFormError('Gagal ganti PIN'); return; }
+    }
+    closeEdit();
     loadList();
   }
 
-  // ── PIN entry screen (select or delete) ──
-  const pinScreen = unlockTarget || deleteTarget;
+  async function handleDeleteFromEdit() {
+    if (!editTarget || !confirm(`Hapus profil ${editTarget.name}? Semua playlist & lagu disukai ikut terhapus.`)) return;
+    setBusy(true);
+    const ok = await deleteProfileRemote(editTarget.id, editPinVerified);
+    setBusy(false);
+    if (!ok) return setFormError('Gagal menghapus');
+    closeEdit();
+    loadList();
+  }
+
+  function closeEdit() {
+    setEditTarget(null);
+    setEditProfile(null);
+    setEditPinVerified('');
+    setName(''); setNewPin(''); setConfirmPin(''); setFormError('');
+  }
+
+  // ── PIN entry screen (select or edit) ──
+  const pinScreen = unlockTarget || (editTarget && !editProfile ? editTarget : null);
   if (pinScreen) {
-    const isDelete = !!deleteTarget;
+    const isEdit = !!editTarget;
     return (
       <div style={screenStyle}>
         <div style={{ width: 100, height: 100, borderRadius: 12, background: pinScreen.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
           {pinScreen.avatar}
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
-          {isDelete ? `Hapus profil ${pinScreen.name}?` : `Masukkan PIN untuk ${pinScreen.name}`}
+          {isEdit ? `Kelola profil ${pinScreen.name}` : `Masukkan PIN untuk ${pinScreen.name}`}
         </h1>
-        <p style={{ color: '#b3b3b3', marginBottom: 28, fontSize: 14 }}>
-          {isDelete ? 'Masukkan PIN profil ini untuk konfirmasi penghapusan' : 'PIN 4 digit'}
-        </p>
+        <p style={{ color: '#b3b3b3', marginBottom: 28, fontSize: 14 }}>PIN 4 digit</p>
         <div style={{ animation: pinError ? 'shake .4s' : undefined }}>
           <PinBoxes value={pin} />
         </div>
@@ -122,12 +196,43 @@ export default function ProfileSelect({ onSelect }: Props) {
           onChange={e => {
             const v = e.target.value.replace(/\D/g, '').slice(0, 4);
             setPin(v);
-            if (v.length === 4) isDelete ? handleDelete(v) : submitPin(v);
+            if (v.length === 4) isEdit ? submitEditPin(v) : submitPin(v);
           }} />
         {pinError && <p style={{ color: '#f44336', marginTop: 16, fontSize: 13 }}>PIN salah, coba lagi</p>}
-        <button onClick={() => { setUnlockTarget(null); setDeleteTarget(null); setPin(''); }}
+        <button onClick={() => { setUnlockTarget(null); setEditTarget(null); setPin(''); }}
           style={{ marginTop: 28, background: 'transparent', color: '#b3b3b3', border: '1px solid rgba(255,255,255,.2)', borderRadius: 20, padding: '8px 20px', cursor: 'pointer', fontFamily: 'inherit' }}>
           Batal
+        </button>
+      </div>
+    );
+  }
+
+  // ── Edit profile screen ──
+  if (editProfile) {
+    return (
+      <div style={screenStyle}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 24 }}>Edit Profil</h1>
+        <div style={{ width: 100, height: 100, borderRadius: 12, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
+          {avatar}
+        </div>
+        <AvatarColorPicker avatar={avatar} setAvatar={setAvatar} color={color} setColor={setColor} />
+        <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nama profil"
+          style={{ ...inputStyle, marginBottom: 14 }} />
+        <p style={{ color: '#b3b3b3', fontSize: 12, marginBottom: 6 }}>Ganti PIN (opsional)</p>
+        <input type="tel" inputMode="numeric" maxLength={4} value={newPin}
+          onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          placeholder="PIN baru" style={{ ...inputStyle, marginBottom: 8 }} />
+        <input type="tel" inputMode="numeric" maxLength={4} value={confirmPin}
+          onChange={e => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          placeholder="Konfirmasi PIN baru" style={inputStyle} />
+        {formError && <p style={{ color: '#f44336', fontSize: 13, marginTop: 10 }}>{formError}</p>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button onClick={handleSaveEdit} disabled={busy} style={primaryBtn}>Simpan</button>
+          <button onClick={closeEdit} style={outlineBtn}>Batal</button>
+        </div>
+        <button onClick={handleDeleteFromEdit} disabled={busy}
+          style={{ ...outlineBtn, color: '#f44336', borderColor: 'rgba(244,67,54,.4)' }}>
+          Hapus Profil
         </button>
       </div>
     );
@@ -141,22 +246,9 @@ export default function ProfileSelect({ onSelect }: Props) {
         <div style={{ width: 100, height: 100, borderRadius: 12, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
           {avatar}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {AVATARS.map(a => (
-            <button key={a} onClick={() => setAvatar(a)}
-              style={{ width: 36, height: 36, borderRadius: 8, fontSize: 18, background: avatar === a ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.06)', border: avatar === a ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer' }}>
-              {a}
-            </button>
-          ))}
-        </div>
+        <AvatarColorPicker avatar={avatar} setAvatar={setAvatar} color={color} setColor={setColor} />
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nama profil"
-          style={inputStyle} />
-        <div style={{ display: 'flex', gap: 8, margin: '14px 0' }}>
-          {COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)}
-              style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: color === c ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }} />
-          ))}
-        </div>
+          style={{ ...inputStyle, marginBottom: 14 }} />
         <input type="tel" inputMode="numeric" maxLength={4} value={newPin}
           onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
           placeholder="PIN 4 digit" style={{ ...inputStyle, marginBottom: 8 }} />
@@ -186,7 +278,7 @@ export default function ProfileSelect({ onSelect }: Props) {
           {profiles.map(p => (
             <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: 140, padding: '16px 8px', borderRadius: 12, position: 'relative' }}
               className="profile-tile">
-              <div onClick={() => managing ? setDeleteTarget(p) : setUnlockTarget(p)}
+              <div onClick={() => managing ? setEditTarget(p) : setUnlockTarget(p)}
                 style={{ position: 'relative', cursor: 'pointer' }}>
                 <div style={{
                   width: 100, height: 100, borderRadius: 12, background: p.color,

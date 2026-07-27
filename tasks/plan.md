@@ -48,6 +48,24 @@ mkmusic is a personal web music player with Spotify-inspired dark mode UI, YouTu
 ### Checkpoint: PIN Profiles
 - [ ] Creating a profile requires setting a 4-digit PIN; selecting any profile requires re-entering it; wrong PIN is rejected; PIN never appears in any network response visible in devtools.
 
+### Phase 6: Google Accounts (Revision 3, part 1)
+- [x] Task 17: `docs/supabase-migration-v3.sql` — add `account_id` to `profiles`, enable RLS scoped to `account_id = auth.uid()`. Manual: enable Google OAuth provider in Supabase dashboard.
+- [x] Task 18: Install `@supabase/ssr`; add `middleware.ts` for session cookie refresh; add `/auth/callback` route handler.
+- [x] Task 19: Login screen (Google button + email/password sign-up/sign-in form, name/confirm-password fields, Cloudflare Turnstile) gating the profile picker; wire `account_id` into profile create/list so `/api/profiles` is scoped server-side via the authenticated session, not client-supplied.
+- [x] Task 20: Profile settings UI (rename, avatar/color, PIN change) — API already exists from Revision 2, UI was missing.
+- [x] Task 21: Sign-out action distinct from "Ganti Profil".
+
+### Checkpoint: Accounts
+- [x] A fresh visitor sees a login screen (Google or email/password), not any existing profile. After login, only that account's own profiles are visible/selectable. PIN entry still required per profile on top of that. Verified live: a stray permissive "Public Access" RLS policy left over from Revision 2 was found and dropped during testing — see docs/supabase-migration-v3.sql.
+
+### Phase 7: Rooms (Revision 3, part 2 — depends on Phase 6)
+- [x] Task 22: `rooms` + `room_members` tables + RLS scoped to `account_id`. Simplified from the original Realtime-Authorization-broadcast plan to Postgres Changes on the `rooms` row — Supabase's realtime replication already honors RLS, so the same-account boundary falls out of the `rooms` SELECT policy with no separate private-channel setup.
+- [x] Task 23: Room create/join/leave API + UI (shareable code, member avatars) — Sidebar (desktop) + TopBar profile menu (mobile).
+- [x] Task 24: Realtime sync + persistence for play/pause/seek/skip/queue changes; `activeRoom` state in `page.tsx` overriding local queue/player state while joined; leaving a room happens automatically on profile switch/sign-out.
+
+### Checkpoint: Rooms
+- [ ] Two profiles under the same account, on two different devices/tabs, join the same room and hear the same track at the same position; either can pause/skip/add a song and the other sees it within ~1s. Needs `docs/supabase-migration-v4.sql` run manually + live testing (not yet done).
+
 ## Risks and Mitigations
 | Risk | Impact | Mitigation |
 |------|--------|------------|

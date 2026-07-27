@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
     "bgutils-js": "^4.0.2",
     "cheerio": "^1.2.0",

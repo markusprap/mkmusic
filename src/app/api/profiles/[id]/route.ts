@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { hashPin, verifyPin } from '@/lib/pin';
 
 // PUT /api/profiles/[id] — sync profile data (liked/playlists/recent/name/color/avatar).
 // Trusted post-unlock: no PIN needed for data sync. Pass { currentPin, newPin } to change the PIN.
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Belum masuk akun' }, { status: 401 });
+
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Body tidak valid' }, { status: 400 });
 
@@ -32,6 +36,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // DELETE /api/profiles/[id] { pin } — requires the profile's own PIN to delete.
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Belum masuk akun' }, { status: 401 });
+
   const body = await req.json().catch(() => null);
   const { data } = await supabase.from('profiles').select('pin_hash').eq('id', params.id).single();
   if (!verifyPin(body?.pin ?? '', data?.pin_hash)) {

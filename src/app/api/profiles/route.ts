@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { hashPin } from '@/lib/pin';
 
 const MAX_PROFILES = 5;
 
-// GET /api/profiles — public fields only, never pin_hash
+// GET /api/profiles — public fields only, never pin_hash. RLS scopes this to the signed-in account.
 export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Belum masuk akun' }, { status: 401 });
+
   const { data, error } = await supabase
     .from('profiles')
     .select('id, name, color, avatar')
@@ -16,6 +20,10 @@ export async function GET() {
 
 // POST /api/profiles { name, color, avatar, pin }
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Belum masuk akun' }, { status: 401 });
+
   const body = await req.json().catch(() => null);
   const name = body?.name?.trim();
   const pin = body?.pin;
@@ -33,6 +41,7 @@ export async function POST(req: NextRequest) {
   const id = crypto.randomUUID();
   const { error } = await supabase.from('profiles').insert({
     id, name, color, avatar,
+    account_id: user.id,
     pin_hash: hashPin(pin),
     liked_ids: [], playlists: [], recent_ids: [],
     updated_at: new Date().toISOString(),

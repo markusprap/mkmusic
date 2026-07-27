@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
-import { Profile } from '@/lib/store';
+import { Profile, Track } from '@/lib/store';
+import { Room } from '@/lib/rooms';
 
 type Tab = 'home' | 'search' | 'discover' | 'library';
 
@@ -13,9 +14,15 @@ interface Props {
   profile: Profile;
   onSwitchProfile: () => void;
   onShowCredits: () => void;
+  onSignOut: () => void;
+  currentTrack: Track | null;
+  activeRoom: Room | null;
+  onCreateRoom: () => void;
+  onJoinRoom: () => void;
+  onLeaveRoom: () => void;
 }
 
-export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchChange, onSearchSubmit, profile, onSwitchProfile, onShowCredits }: Props) {
+export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchChange, onSearchSubmit, profile, onSwitchProfile, onShowCredits, onSignOut, currentTrack, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -73,8 +80,17 @@ export default function TopBar({ activeTab, onTabChange, searchQuery, onSearchCh
             <>
               <div style={{position:'fixed',inset:0,zIndex:399}} onClick={() => setShowMenu(false)} />
               <div className="ctx-menu" style={{position:'absolute',top:'calc(100% + 8px)',right:0,left:'auto'}}>
+                {activeRoom ? (
+                  <div className="ctx-item" onClick={() => { setShowMenu(false); onLeaveRoom(); }}>Keluar Room ({activeRoom.code})</div>
+                ) : (
+                  <>
+                    <div className="ctx-item" onClick={() => { setShowMenu(false); onCreateRoom(); }} style={currentTrack ? undefined : {opacity:.4,pointerEvents:'none'}}>Buat Room</div>
+                    <div className="ctx-item" onClick={() => { setShowMenu(false); onJoinRoom(); }}>Gabung Room</div>
+                  </>
+                )}
                 <div className="ctx-item" onClick={() => { setShowMenu(false); onSwitchProfile(); }}>Ganti Profil</div>
                 <div className="ctx-item" onClick={() => { setShowMenu(false); onShowCredits(); }}>Credits & Donasi</div>
+                <div className="ctx-item" onClick={() => { setShowMenu(false); onSignOut(); }}>Keluar Akun</div>
               </div>
             </>
           )}
