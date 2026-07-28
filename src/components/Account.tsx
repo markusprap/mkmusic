@@ -32,7 +32,7 @@ export default function Account({ profile, activeRoom, onSwitchProfile, onCreate
 
       {/* Profile */}
       <div className="profile-card" style={{ background: 'rgba(255,255,255,.06)', padding: 14 }} onClick={onSwitchProfile}>
-        <div className="profile-avatar" style={{ background: profile.color, width: 48, height: 48, fontSize: 20 }}>{profile.avatar}</div>
+        <img className="profile-avatar" src={profile.avatar} alt={profile.name} style={{ width: 48, height: 48 }} />
         <div className="profile-info">
           <div className="profile-name" style={{ fontSize: 16, fontWeight: 700 }}>{profile.name}</div>
           <div className="profile-sub">Ganti profil</div>
@@ -53,9 +53,7 @@ export default function Account({ profile, activeRoom, onSwitchProfile, onCreate
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 2, color: '#fff', margin: '6px 0' }}>{activeRoom.code}</div>
             <div style={{ display: 'flex', gap: 4 }}>
               {activeRoom.members.map(m => (
-                <div key={m.id} title={m.name} style={{ width: 26, height: 26, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
-                  {m.avatar}
-                </div>
+                <img key={m.id} title={m.name} src={m.avatar} alt={m.name} style={{ width: 26, height: 26, borderRadius: '50%' }} />
               ))}
             </div>
           </div>

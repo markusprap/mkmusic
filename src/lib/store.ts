@@ -17,7 +17,6 @@ export function formatDuration(s: number): string {
 export interface PublicProfile {
   id: string;
   name: string;
-  color: string;
   avatar: string;
 }
 
@@ -25,6 +24,7 @@ export interface Profile extends PublicProfile {
   likedIds: string[];
   playlists: Playlist[];
   recentIds: string[];
+  playCounts: Record<string, number>;
 }
 
 export interface Playlist {
@@ -61,8 +61,7 @@ export function normalizeProfile(p: any): Profile {
   return {
     id: p?.id || crypto.randomUUID(),
     name: p?.name || 'User',
-    color: p?.color || '#1db954',
-    avatar: p?.avatar || '🎵',
+    avatar: p?.avatar || '/avatar/cranks.svg',
     likedIds: Array.isArray(p?.likedIds) ? p.likedIds : [],
     playlists: Array.isArray(p?.playlists) ? p.playlists.map((pl: any) => ({
       id: pl?.id || crypto.randomUUID(),
@@ -71,6 +70,7 @@ export function normalizeProfile(p: any): Profile {
       createdAt: pl?.createdAt || Date.now(),
     })) : [],
     recentIds: Array.isArray(p?.recentIds) ? p.recentIds : [],
+    playCounts: (p?.playCounts && typeof p.playCounts === 'object') ? p.playCounts : {},
   };
 }
 
@@ -95,9 +95,9 @@ export async function fetchPublicProfiles(): Promise<PublicProfile[]> {
 }
 
 export async function createProfileRemote(
-  name: string, color: string, avatar: string, pin: string
+  name: string, avatar: string, pin: string
 ): Promise<{ profile: PublicProfile } | { error: string }> {
-  const { ok, data } = await postJson('/api/profiles', 'POST', { name, color, avatar, pin });
+  const { ok, data } = await postJson('/api/profiles', 'POST', { name, avatar, pin });
   return ok ? { profile: data.profile } : { error: data.error || 'Gagal membuat profil' };
 }
 
@@ -116,11 +116,11 @@ export async function syncProfile(profile: Profile): Promise<boolean> {
   try {
     const { ok } = await postJson(`/api/profiles/${profile.id}`, 'PUT', {
       name: profile.name,
-      color: profile.color,
       avatar: profile.avatar,
       likedIds: profile.likedIds,
       playlists: profile.playlists,
       recentIds: profile.recentIds,
+      playCounts: profile.playCounts,
     });
     return ok;
   } catch {
@@ -148,10 +148,14 @@ export function toggleLike(profile: Profile, trackId: string): Profile {
   return { ...p, likedIds };
 }
 
+// Single choke point every track play routes through (called once, from
+// playTrack in page.tsx) — also bumps playCounts here rather than adding a
+// second parallel "record a play" function.
 export function addRecent(profile: Profile, trackId: string): Profile {
   const p = normalizeProfile(profile);
   const recentIds = [trackId, ...p.recentIds.filter(id => id !== trackId)].slice(0, 50);
-  return { ...p, recentIds };
+  const playCounts = { ...p.playCounts, [trackId]: (p.playCounts[trackId] || 0) + 1 };
+  return { ...p, recentIds, playCounts };
 }
 
 export function createPlaylist(profile: Profile, name: string): { profile: Profile; playlist: Playlist } {

@@ -4,7 +4,6 @@ export interface RoomMember {
   id: string;
   name: string;
   avatar: string;
-  color: string;
 }
 
 export interface Room {

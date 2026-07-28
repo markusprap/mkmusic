@@ -2,37 +2,32 @@
 import {
   Profile, PublicProfile,
   fetchPublicProfiles, createProfileRemote, unlockProfile, deleteProfileRemote, syncProfile,
-  saveActiveId, loadActiveId,
+  saveActiveId, loadActiveId, normalizeProfile,
 } from '@/lib/store';
 import { useState, useEffect } from 'react';
 import ConfirmModal from './ConfirmModal';
+import Onboarding from './Onboarding';
 
-const COLORS = ['#1db954', '#e91e8c', '#2196f3', '#ff9800', '#9c27b0', '#f44336'];
-const AVATARS = ['🎵', '🎸', '🎹', '🎺', '🎻', '🥁'];
+const AVATARS = [
+  '/avatar/cranks.svg', '/avatar/cranks-1.svg', '/avatar/cranks-2.svg',
+  '/avatar/delivery-boy.svg', '/avatar/delivery-boy-1.svg', '/avatar/delivery-boy-2.svg',
+  '/avatar/delivery-boy-3.svg', '/avatar/delivery-boy-4.svg', '/avatar/delivery-boy-5.svg',
+  '/avatar/e-commerce.svg', '/avatar/e-commerce-1.svg', '/avatar/e-commerce-2.svg',
+];
 const MAX_PROFILES = 5;
 
 interface Props { onSelect: (p: Profile) => void }
 
-function AvatarColorPicker({ avatar, setAvatar, color, setColor }: {
-  avatar: string; setAvatar: (a: string) => void; color: string; setColor: (c: string) => void;
-}) {
+function AvatarPicker({ avatar, setAvatar }: { avatar: string; setAvatar: (a: string) => void }) {
   return (
-    <>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {AVATARS.map(a => (
-          <button key={a} onClick={() => setAvatar(a)}
-            style={{ width: 36, height: 36, borderRadius: 8, fontSize: 18, background: avatar === a ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.06)', border: avatar === a ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer' }}>
-            {a}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 8, margin: '0 0 14px' }}>
-        {COLORS.map(c => (
-          <button key={c} onClick={() => setColor(c)}
-            style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: color === c ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }} />
-        ))}
-      </div>
-    </>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8, marginBottom: 16, maxWidth: 260 }}>
+      {AVATARS.map(a => (
+        <button key={a} onClick={() => setAvatar(a)}
+          style={{ width: 38, height: 38, borderRadius: '50%', padding: 2, background: avatar === a ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.06)', border: avatar === a ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer' }}>
+          <img src={a} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -63,9 +58,9 @@ export default function ProfileSelect({ onSelect }: Props) {
   const [editTarget, setEditTarget] = useState<PublicProfile | null>(null);
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
   const [editPinVerified, setEditPinVerified] = useState('');
+  const [onboardingProfile, setOnboardingProfile] = useState<Profile | null>(null);
 
   const [name, setName] = useState('');
-  const [color, setColor] = useState(COLORS[0]);
   const [avatar, setAvatar] = useState(AVATARS[0]);
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -105,13 +100,13 @@ export default function ProfileSelect({ onSelect }: Props) {
     if (newPin !== confirmPin) return setFormError('Konfirmasi PIN tidak cocok');
 
     setBusy(true);
-    const result = await createProfileRemote(name.trim(), color, avatar, newPin);
+    const result = await createProfileRemote(name.trim(), avatar, newPin);
     setBusy(false);
     if ('error' in result) return setFormError(result.error);
 
     setCreating(false);
     setName(''); setNewPin(''); setConfirmPin('');
-    loadList();
+    setOnboardingProfile(normalizeProfile(result.profile));
   }
 
   // Verifies the PIN once, then unlocks the edit screen for that profile —
@@ -131,7 +126,6 @@ export default function ProfileSelect({ onSelect }: Props) {
     setEditProfile(result.profile);
     setEditPinVerified(value);
     setName(result.profile.name);
-    setColor(result.profile.color);
     setAvatar(result.profile.avatar);
     setPin('');
   }
@@ -144,7 +138,7 @@ export default function ProfileSelect({ onSelect }: Props) {
       return setFormError('PIN baru harus 4 digit dan cocok dengan konfirmasi');
     }
     setBusy(true);
-    const ok = await syncProfile({ ...editProfile, name: name.trim(), color, avatar });
+    const ok = await syncProfile({ ...editProfile, name: name.trim(), avatar });
     setBusy(false);
     if (!ok) return setFormError('Gagal menyimpan');
     if (newPin) {
@@ -176,14 +170,25 @@ export default function ProfileSelect({ onSelect }: Props) {
     setName(''); setNewPin(''); setConfirmPin(''); setFormError('');
   }
 
+  // ── Onboarding (fresh profile only, right after creation) ──
+  if (onboardingProfile) {
+    return (
+      <Onboarding profile={onboardingProfile} onDone={p => {
+        setOnboardingProfile(null);
+        saveActiveId(p.id);
+        onSelect(p);
+      }} />
+    );
+  }
+
   // ── PIN entry screen (select or edit) ──
   const pinScreen = unlockTarget || (editTarget && !editProfile ? editTarget : null);
   if (pinScreen) {
     const isEdit = !!editTarget;
     return (
       <div style={screenStyle}>
-        <div style={{ width: 100, height: 100, borderRadius: 12, background: pinScreen.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
-          {pinScreen.avatar}
+        <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 20 }}>
+          <img src={pinScreen.avatar} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
           {isEdit ? `Kelola profil ${pinScreen.name}` : `Masukkan PIN untuk ${pinScreen.name}`}
@@ -214,10 +219,10 @@ export default function ProfileSelect({ onSelect }: Props) {
     return (
       <div style={screenStyle}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 24 }}>Edit Profil</h1>
-        <div style={{ width: 100, height: 100, borderRadius: 12, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
-          {avatar}
+        <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 20 }}>
+          <img src={avatar} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
-        <AvatarColorPicker avatar={avatar} setAvatar={setAvatar} color={color} setColor={setColor} />
+        <AvatarPicker avatar={avatar} setAvatar={setAvatar} />
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nama profil"
           style={{ ...inputStyle, marginBottom: 14 }} />
         <p style={{ color: '#b3b3b3', fontSize: 12, marginBottom: 6 }}>Ganti PIN (opsional)</p>
@@ -253,10 +258,10 @@ export default function ProfileSelect({ onSelect }: Props) {
     return (
       <div style={screenStyle}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 24 }}>Buat Profil Baru</h1>
-        <div style={{ width: 100, height: 100, borderRadius: 12, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 20 }}>
-          {avatar}
+        <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 20 }}>
+          <img src={avatar} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
-        <AvatarColorPicker avatar={avatar} setAvatar={setAvatar} color={color} setColor={setColor} />
+        <AvatarPicker avatar={avatar} setAvatar={setAvatar} />
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nama profil"
           style={{ ...inputStyle, marginBottom: 14 }} />
         <input type="tel" inputMode="numeric" maxLength={4} value={newPin}
@@ -283,6 +288,17 @@ export default function ProfileSelect({ onSelect }: Props) {
       </h1>
       <p style={{ color: '#b3b3b3', marginBottom: 48, fontSize: 16 }}>Pilih profil untuk melanjutkan</p>
 
+      {loading && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center', marginBottom: 32, maxWidth: 900 }}>
+          {Array(4).fill(0).map((_, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: 140, padding: '16px 8px' }}>
+              <div className="skeleton" style={{ width: 100, height: 100, borderRadius: '50%' }} />
+              <div className="skeleton" style={{ width: '60%', height: 16, borderRadius: 4 }} />
+            </div>
+          ))}
+        </div>
+      )}
+
       {!loading && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center', marginBottom: 32, maxWidth: 900 }}>
           {profiles.map(p => (
@@ -291,17 +307,18 @@ export default function ProfileSelect({ onSelect }: Props) {
               <div onClick={() => managing ? setEditTarget(p) : setUnlockTarget(p)}
                 style={{ position: 'relative', cursor: 'pointer' }}>
                 <div style={{
-                  width: 100, height: 100, borderRadius: 12, background: p.color,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44,
+                  width: 100, height: 100, borderRadius: '50%', overflow: 'hidden',
                   boxShadow: '0 8px 24px rgba(0,0,0,.5)',
                   outline: lastActiveId === p.id ? '2px solid #fff' : 'none', outlineOffset: 3,
                   filter: managing ? 'brightness(.5)' : 'none',
                 }}>
-                  {p.avatar}
+                  <img src={p.avatar} alt="" style={{ width: '100%', height: '100%' }} />
                 </div>
                 {managing && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="28" height="28" fill="#fff" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" fill="none" stroke="#fff" strokeWidth="2" /></svg>
+                    <svg width="26" height="26" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                    </svg>
                   </div>
                 )}
               </div>
@@ -312,7 +329,7 @@ export default function ProfileSelect({ onSelect }: Props) {
           {!managing && profiles.length < MAX_PROFILES && (
             <div onClick={() => setCreating(true)} className="profile-tile"
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, cursor: 'pointer', width: 140, padding: '16px 8px', borderRadius: 12 }}>
-              <div style={{ width: 100, height: 100, borderRadius: 12, background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, border: '2px dashed rgba(255,255,255,.2)' }}>
+              <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, border: '2px dashed rgba(255,255,255,.2)' }}>
                 +
               </div>
               <span style={{ fontWeight: 600, fontSize: 14, color: '#b3b3b3' }}>Tambah Profil</span>
@@ -335,7 +352,7 @@ export default function ProfileSelect({ onSelect }: Props) {
   );
 }
 
-const screenStyle: React.CSSProperties = {
+export const screenStyle: React.CSSProperties = {
   minHeight: '100vh', background: '#121212', display: 'flex', flexDirection: 'column',
   alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'Inter,sans-serif', position: 'relative',
 };

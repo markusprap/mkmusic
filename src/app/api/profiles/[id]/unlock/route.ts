@@ -21,11 +21,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     profile: {
       id: data.id,
       name: data.name,
-      color: data.color,
       avatar: data.avatar,
       likedIds: data.liked_ids ?? [],
       playlists: data.playlists ?? [],
       recentIds: data.recent_ids ?? [],
+      playCounts: data.play_counts ?? {},
     },
   });
 }

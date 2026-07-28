@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!profileId) return NextResponse.json({ error: 'Profil wajib diisi' }, { status: 400 });
 
   // RLS on `profiles` already scopes this select to the caller's own account.
-  const { data: profile } = await supabase.from('profiles').select('id, name, avatar, color').eq('id', profileId).single();
+  const { data: profile } = await supabase.from('profiles').select('id, name, avatar').eq('id', profileId).single();
   if (!profile) return NextResponse.json({ error: 'Profil tidak valid' }, { status: 403 });
 
   let room = null;

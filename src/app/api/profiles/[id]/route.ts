@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hashPin, verifyPin } from '@/lib/pin';
 
-// PUT /api/profiles/[id] — sync profile data (liked/playlists/recent/name/color/avatar).
+// PUT /api/profiles/[id] — sync profile data (liked/playlists/recent/playCounts/name/avatar).
 // Trusted post-unlock: no PIN needed for data sync. Pass { currentPin, newPin } to change the PIN.
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -22,11 +22,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.name !== undefined) update.name = body.name;
-  if (body.color !== undefined) update.color = body.color;
   if (body.avatar !== undefined) update.avatar = body.avatar;
   if (body.likedIds !== undefined) update.liked_ids = body.likedIds;
   if (body.playlists !== undefined) update.playlists = body.playlists;
   if (body.recentIds !== undefined) update.recent_ids = body.recentIds;
+  if (body.playCounts !== undefined) update.play_counts = body.playCounts;
   if (body.newPin) update.pin_hash = hashPin(body.newPin);
 
   const { error } = await supabase.from('profiles').update(update).eq('id', params.id);

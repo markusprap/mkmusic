@@ -3,6 +3,7 @@ import { Track, Profile, cacheTrack, toggleLike, formatDuration } from '@/lib/st
 import type { ArtistResult, AlbumResult, PlaylistResult } from '@/lib/youtube';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import TrackMenu from './TrackMenu';
+import TrackImg from './TrackImg';
 
 type SearchTab = 'songs' | 'artists' | 'albums' | 'playlists';
 
@@ -42,8 +43,10 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
   const [playlists, setPlaylists] = useState<PlaylistResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>('songs');
+  const [visibleCount, setVisibleCount] = useState(20);
   const lastQuery = useRef('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { onQueryChange(''); inputRef.current?.blur(); }
@@ -78,6 +81,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
       const t: Track[] = data.tracks ?? [];
       t.forEach(cacheTrack);
       setTracks(t);
+      setVisibleCount(20);
       setArtists(data.artists ?? []);
       setAlbums(data.albums ?? []);
       setPlaylists(data.playlists ?? []);
@@ -89,6 +93,21 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
   }, []);
 
   useEffect(() => { if (query) doSearch(query); }, [query, doSearch]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(c => Math.min(c + 20, tracks.length));
+  }, [tracks.length]);
+
+  // Mobile-only: .loadmore-sentinel is display:none on desktop (CSS,
+  // >768px), so it never intersects there — desktop stays button-only.
+  useEffect(() => {
+    if (!sentinel) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadMore();
+    });
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [sentinel, loadMore]);
 
   const liked = (id: string) => (profile?.likedIds || []).includes(id);
 
@@ -141,7 +160,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
         <div className="section">
           <h2 className="section-title" style={{marginBottom:12}}>Hasil Teratas</h2>
           <div className="search-hero-card" onClick={() => onPlay(topResult, tracks)}>
-            <img className="search-hero-img" src={topResult.thumbnail} alt={topResult.title} />
+            <TrackImg className="search-hero-img" src={topResult.thumbnail} alt={topResult.title} />
             <div>
               <p style={{fontSize:13,color:'#b3b3b3',marginBottom:4}}>Lagu</p>
               <h3 style={{fontSize:'clamp(18px,3vw,26px)',fontWeight:900,marginBottom:4}}>{topResult.title}</h3>
@@ -181,7 +200,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
       {!loading && activeTab === 'songs' && (
         <div className="section">
           <div className="track-list">
-            {tracks.map((t, i) => {
+            {tracks.slice(0, visibleCount).map((t, i) => {
               const isActive = currentTrack?.id === t.id;
               return (
                 <div key={t.id} className={`track-row ${isActive ? 'is-active' : ''}`}
@@ -191,7 +210,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
                     <svg width="14" height="14" fill={isActive?'#1db954':'currentColor'} viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
                   </div>
                   <div className="track-info">
-                    <img className="track-img" src={t.thumbnail} alt={t.title} />
+                    <TrackImg className="track-img" src={t.thumbnail} alt={t.title} />
                     <div className="track-meta">
                       <div className="track-title">{t.title}</div>
                       <div className="track-artist">{t.artist}</div>
@@ -211,6 +230,16 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
           {tracks.length === 0 && (
             <p style={{color:'#b3b3b3',textAlign:'center',padding:'40px 0'}}>Tidak ada hasil untuk "{query}"</p>
           )}
+          {visibleCount < tracks.length && (
+            <>
+              <div className="loadmore-row">
+                <button className="btn-outline" onClick={loadMore}>
+                  Muat Lebih Banyak
+                </button>
+              </div>
+              <div ref={setSentinel} className="loadmore-sentinel" />
+            </>
+          )}
         </div>
       )}
 
@@ -221,7 +250,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
             {artists.map(a => (
               <div key={a.id} className="card" onClick={() => onOpenArtist(a.id)}>
                 <div className="card-img-wrap circle">
-                  <img src={a.thumbnail} alt={a.name} />
+                  <TrackImg src={a.thumbnail} alt={a.name} />
                   <div className="card-play">
                     <svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
                   </div>
@@ -242,7 +271,7 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
             {albums.map(a => (
               <div key={a.id} className="card" onClick={() => onOpenAlbum(a.id)}>
                 <div className="card-img-wrap">
-                  <img src={a.thumbnail} alt={a.name} />
+                  <TrackImg src={a.thumbnail} alt={a.name} />
                   <div className="card-play">
                     <svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
                   </div>
@@ -261,8 +290,13 @@ export default function Search({ query, profile, currentTrack, isPlaying, onPlay
         <div className="section">
           <div className="card-grid">
             {playlists.map(p => (
-              <div key={p.id} className="card">
-                <div className="card-img-wrap"><img src={p.thumbnail} alt={p.name} /></div>
+              <div key={p.id} className="card" onClick={() => onCategoryClick(p.name)}>
+                <div className="card-img-wrap">
+                  <TrackImg src={p.thumbnail} alt={p.name} />
+                  <div className="card-play">
+                    <svg width="16" height="16" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                  </div>
+                </div>
                 <div className="card-title">{p.name}</div>
                 <div className="card-sub">{p.artist || 'Playlist'}</div>
               </div>

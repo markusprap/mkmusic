@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, color, avatar')
+    .select('id, name, avatar')
     .order('updated_at', { ascending: true });
   if (error) { console.error('profiles list error:', error); return NextResponse.json({ profiles: [] }); }
   return NextResponse.json({ profiles: data ?? [] });
@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const name = body?.name?.trim();
   const pin = body?.pin;
-  const color = body?.color || '#1db954';
-  const avatar = body?.avatar || '🎵';
+  const color = '#1db954'; // ponytail: `color` column kept NOT NULL-safe server-side; no longer exposed to clients, avatar images carry their own look
+  const avatar = body?.avatar || '/avatar/cranks.svg';
 
   if (!name) return NextResponse.json({ error: 'Nama wajib diisi' }, { status: 400 });
   if (!/^\d{4}$/.test(pin ?? '')) return NextResponse.json({ error: 'PIN harus 4 digit angka' }, { status: 400 });
@@ -48,5 +48,5 @@ export async function POST(req: NextRequest) {
   });
   if (error) { console.error('profiles create error:', error); return NextResponse.json({ error: 'Gagal membuat profil' }, { status: 500 }); }
 
-  return NextResponse.json({ profile: { id, name, color, avatar } });
+  return NextResponse.json({ profile: { id, name, avatar } });
 }

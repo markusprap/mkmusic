@@ -4,7 +4,7 @@ import { Room, RoomMember } from './rooms';
 export async function fetchRoomMembers(supabase: SupabaseClient, roomId: string): Promise<RoomMember[]> {
   const { data } = await supabase
     .from('room_members')
-    .select('profiles(id, name, avatar, color)')
+    .select('profiles(id, name, avatar)')
     .eq('room_id', roomId);
   return (data ?? []).map((m: any) => m.profiles);
 }

@@ -2,6 +2,8 @@
 import { Track, Profile, toggleLike } from '@/lib/store';
 import { useState, useEffect, useRef } from 'react';
 import TrackMenu from './TrackMenu';
+import TrackImg from './TrackImg';
+import { useDragReorder } from '@/lib/useDragReorder';
 
 type PanelTab = 'queue' | 'lyrics';
 
@@ -16,11 +18,13 @@ interface Props {
   currentTime: number;
   onPlayTrack: (index: number) => void;
   onProfileChange: (p: Profile) => void;
+  onReorderQueue: (fromIndex: number, toIndex: number) => void;
   onClose: () => void;
 }
 
-export default function Queue({ queue, currentTrack, currentIndex, profile, isPlaying, currentTime, onPlayTrack, onProfileChange, onClose }: Props) {
+export default function Queue({ queue, currentTrack, currentIndex, profile, isPlaying, currentTime, onPlayTrack, onProfileChange, onReorderQueue, onClose }: Props) {
   const [tab, setTab] = useState<PanelTab>('queue');
+  const { dragIndex, dragProps } = useDragReorder(onReorderQueue);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsError, setLyricsError] = useState(false);
@@ -103,7 +107,7 @@ export default function Queue({ queue, currentTrack, currentIndex, profile, isPl
               <>
                 <div className="queue-section-label">Sedang Diputar</div>
                 <div className="queue-item now-playing">
-                  <img src={currentTrack.thumbnail} alt={currentTrack.title} />
+                  <TrackImg src={currentTrack.thumbnail} alt={currentTrack.title} />
                   <div className="queue-item-info">
                     <div className="queue-item-title">{currentTrack.title}</div>
                     <div className="queue-item-artist">{currentTrack.artist}</div>
@@ -117,16 +121,21 @@ export default function Queue({ queue, currentTrack, currentIndex, profile, isPl
             {queue.slice(currentIndex + 1).length > 0 && (
               <>
                 <div className="queue-section-label" style={{marginTop:8}}>Selanjutnya</div>
-                {queue.slice(currentIndex + 1).map((t, i) => (
-                  <div key={t.id + i} className="queue-item" onClick={() => onPlayTrack(currentIndex + 1 + i)}>
-                    <img src={t.thumbnail} alt={t.title} />
-                    <div className="queue-item-info">
-                      <div className="queue-item-title">{t.title}</div>
-                      <div className="queue-item-artist">{t.artist}</div>
+                {queue.slice(currentIndex + 1).map((t, i) => {
+                  const absIndex = currentIndex + 1 + i;
+                  return (
+                    <div key={t.id + i} className={`queue-item${dragIndex === absIndex ? ' dragging' : ''}`}
+                      {...dragProps(absIndex)}
+                      onClick={() => onPlayTrack(absIndex)}>
+                      <TrackImg src={t.thumbnail} alt={t.title} />
+                      <div className="queue-item-info">
+                        <div className="queue-item-title">{t.title}</div>
+                        <div className="queue-item-artist">{t.artist}</div>
+                      </div>
+                      <TrackMenu profile={profile} track={t} onProfileChange={onProfileChange} />
                     </div>
-                    <TrackMenu profile={profile} track={t} onProfileChange={onProfileChange} />
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
 

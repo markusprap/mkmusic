@@ -31,5 +31,10 @@ To enjoy a feature-rich, Spotify Premium / YT Music streaming experience without
 ## Out of Scope
 - Monetization / Payment integration.
 - Advertisements.
-- Heavy YouTube video playback (audio-focused).
 - Public social networks / public profile feeds.
+
+Note: the original "Heavy YouTube video playback (audio-focused)" line was
+removed here as a deliberate scope change (Phase 13, see
+`docs/intent/expanded-player-video.md`) — the expanded player now has a
+Video tab that plays a track's real YouTube video via an embedded iframe,
+alongside the existing audio-first vinyl view.

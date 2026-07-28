@@ -10,6 +10,7 @@ interface Props {
   profile: Profile;
   activeTab: Tab;
   onTabChange: (t: Tab) => void;
+  onPlay: (t: Track, queue: Track[]) => void;
   queue: Track[];
   currentTrack: Track | null;
   sidebarCollapsed: boolean;
@@ -23,8 +24,9 @@ interface Props {
   onLeaveRoom: () => void;
 }
 
-export default function Sidebar({ profile, activeTab, onTabChange, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits, onSignOut, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
+export default function Sidebar({ profile, activeTab, onTabChange, onPlay, queue, currentTrack, sidebarCollapsed, onToggleSidebar, onSwitchProfile, onShowCredits, onSignOut, activeRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: Props) {
   const [bgMode] = useState(() => isBackgroundModeEnabled());
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const recentIds = profile?.recentIds || [];
   const likedIds = profile?.likedIds || [];
@@ -111,7 +113,7 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
           <>
             <div className="lib-section-title">Riwayat</div>
             {recentTracks.map(t => (
-              <div key={t.id} className="lib-item">
+              <div key={t.id} className="lib-item" onClick={()=>onPlay(t, recentTracks)}>
                 <img src={t.thumbnail} alt={t.title} style={{width:40,height:40,borderRadius:4,objectFit:'cover',flexShrink:0}} />
                 <div className="lib-item-info">
                   <div className="lib-item-name">{t.title}</div>
@@ -136,9 +138,7 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
             <div style={{fontSize:18, fontWeight:800, letterSpacing:2, color:'#fff', margin:'4px 0'}}>{activeRoom.code}</div>
             <div style={{display:'flex', gap:4}}>
               {activeRoom.members.map(m => (
-                <div key={m.id} title={m.name} style={{width:24, height:24, borderRadius:'50%', background:m.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12}}>
-                  {m.avatar}
-                </div>
+                <img key={m.id} title={m.name} src={m.avatar} alt={m.name} style={{width:24, height:24, borderRadius:'50%'}} />
               ))}
             </div>
           </div>
@@ -157,22 +157,38 @@ export default function Sidebar({ profile, activeTab, onTabChange, queue, curren
       {/* Profile */}
       <div className="sidebar-bottom">
         <div className="profile-card" onClick={onSwitchProfile}>
-          <div className="profile-avatar" style={{background: profile.color}}>{profile.avatar}</div>
+          <img className="profile-avatar" src={profile.avatar} alt={profile.name} />
           <div className="profile-info">
             <div className="profile-name">{profile.name}</div>
             <div className="profile-sub">Ganti profil</div>
           </div>
         </div>
-        <button className="lib-item" style={{...bottomBtnStyle, display:'flex', justifyContent:'space-between'}} onClick={toggleBackgroundMode}>
-          <span>Mode Latar Belakang (Beta)</span>
-          <span style={{color: bgMode ? '#1db954' : 'var(--text-2)', fontWeight:700}}>{bgMode ? 'ON' : 'OFF'}</span>
-        </button>
-        <button className="lib-item" style={bottomBtnStyle} onClick={onShowCredits}>
-          Credits & Donasi
-        </button>
-        <button className="lib-item" style={bottomBtnStyle} onClick={onSignOut}>
-          Keluar Akun
-        </button>
+        <div style={{position:'relative'}}>
+          <button className="lib-item" style={{...bottomBtnStyle, display:'flex', gap:8}} onClick={() => setSettingsOpen(o => !o)}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Pengaturan
+          </button>
+          {settingsOpen && (
+            <>
+              <div style={{position:'fixed', inset:0, zIndex:399}} onClick={() => setSettingsOpen(false)} />
+              <div className="ctx-menu" style={{position:'absolute', bottom:'calc(100% + 4px)', left:0, right:0, width:'auto'}}>
+                <div className="ctx-item" style={{justifyContent:'space-between'}} onClick={toggleBackgroundMode}>
+                  <span>Mode Latar Belakang (Beta)</span>
+                  <span style={{color: bgMode ? '#1db954' : 'var(--text-2)', fontWeight:700}}>{bgMode ? 'ON' : 'OFF'}</span>
+                </div>
+                <div className="ctx-item" onClick={() => { setSettingsOpen(false); onShowCredits(); }}>
+                  Credits & Donasi
+                </div>
+                <div className="ctx-divider" />
+                <div className="ctx-item" style={{color:'#f44336'}} onClick={() => { setSettingsOpen(false); onSignOut(); }}>
+                  Keluar Akun
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </nav>
   );

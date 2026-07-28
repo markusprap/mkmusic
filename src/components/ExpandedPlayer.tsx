@@ -2,9 +2,13 @@
 import { Track, Profile, toggleLike } from '@/lib/store';
 import { useEffect, useRef, useState } from 'react';
 import TrackMenu from './TrackMenu';
+import VinylArt from './VinylArt';
+import TrackImg from './TrackImg';
+import { useDragReorder } from '@/lib/useDragReorder';
 
 interface LyricLine { time: number; text: string }
 type ExpTab = 'queue' | 'lyrics' | 'related';
+type ViewMode = 'lagu' | 'video';
 
 interface Props {
   track: Track;
@@ -29,6 +33,7 @@ interface Props {
   onProfileChange: (p: Profile) => void;
   onPlayIndex: (i: number) => void;
   onPlay: (t: Track, queue: Track[]) => void;
+  onReorderQueue: (fromIndex: number, toIndex: number) => void;
 }
 
 function fmtTime(s: number) {
@@ -39,6 +44,41 @@ function fmtTime(s: number) {
 export default function ExpandedPlayer(props: Props) {
   const { track, queue, currentIndex, profile, isPlaying, shuffle, repeat, currentTime, duration, volume, dynamicRgb, onClose } = props;
   const [tab, setTab] = useState<ExpTab>('queue');
+  const { dragIndex, dragProps } = useDragReorder(props.onReorderQueue);
+  // Lagu/Video is a separate switcher from the Antrian/Lirik/Terkait tabs
+  // above — it swaps the visual only. Audio keeps playing through the
+  // existing player regardless of which one is selected.
+  const [viewMode, setViewMode] = useState<ViewMode>('lagu');
+
+  // Mobile-only bottom sheet (Antrian/Lirik/Terkait) — starts collapsed to a
+  // peek/handle so the vinyl/video takes the full screen first, like YT
+  // Music/Spotify, instead of showing tab content immediately. Desktop
+  // ignores all of this (its CSS never applies the transform). Drag math
+  // uses a fixed peek height + 70vh sheet height rather than measuring the
+  // real content height — a live device only needs "past halfway" snapping,
+  // not pixel-perfect sizing.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [dragOffset, setDragOffset] = useState<number | null>(null);
+  const dragStart = useRef<{ y: number; base: number } | null>(null);
+  const SHEET_PEEK = 64;
+  const closedOffset = () => (typeof window === 'undefined' ? 0 : window.innerHeight * 0.7 - SHEET_PEEK);
+
+  function onSheetDragStart(e: React.PointerEvent) {
+    dragStart.current = { y: e.clientY, base: sheetOpen ? 0 : closedOffset() };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onSheetDragMove(e: React.PointerEvent) {
+    if (!dragStart.current) return;
+    const max = closedOffset();
+    setDragOffset(Math.max(0, Math.min(max, dragStart.current.base + (e.clientY - dragStart.current.y))));
+  }
+  function onSheetDragEnd() {
+    if (!dragStart.current) return;
+    const max = closedOffset();
+    setSheetOpen((dragOffset ?? dragStart.current.base) < max / 2);
+    dragStart.current = null;
+    setDragOffset(null);
+  }
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const activeLyricRef = useRef<HTMLDivElement>(null);
@@ -137,10 +177,24 @@ export default function ExpandedPlayer(props: Props) {
         </div>
 
         {/* Body */}
-        <div className="expanded-body compact-art">
+        <div className="expanded-body">
           {/* Left: art + info */}
           <div className="expanded-art-col">
-            <img src={track.thumbnail} alt={track.title} />
+            <div className="expanded-panel-tabs" style={{ marginBottom: 12 }}>
+              {(['lagu', 'video'] as ViewMode[]).map(v => (
+                <button key={v} className={`exp-tab ${viewMode === v ? 'active' : ''}`} onClick={() => setViewMode(v)}>
+                  {v === 'lagu' ? 'Lagu' : 'Video'}
+                </button>
+              ))}
+            </div>
+            {viewMode === 'lagu' ? (
+              <VinylArt thumbnail={track.thumbnail} spinning={isPlaying} style={{ width: '100%', height: 'auto', aspectRatio: '1' }} />
+            ) : (
+              <div className="expanded-video-wrap">
+                <iframe key={track.id} src={`https://www.youtube.com/embed/${track.id}?autoplay=0`}
+                  allow="autoplay; encrypted-media" allowFullScreen />
+              </div>
+            )}
             <div className="expanded-art-meta">
               <div className="expanded-track-name">{track.title}</div>
               <div className="expanded-artist-name">{track.artist}</div>
@@ -154,8 +208,12 @@ export default function ExpandedPlayer(props: Props) {
             </div>
           </div>
 
-          {/* Right: tabs + content */}
-          <div className="expanded-right-col">
+          {/* Right: tabs + content — a draggable bottom sheet on mobile, a plain column on desktop */}
+          <div className={`expanded-right-col expanded-sheet${sheetOpen ? ' open' : ''}`}
+            style={dragOffset !== null ? { transform: `translateY(${dragOffset}px)`, transition: 'none' } : undefined}>
+            <div className="expanded-sheet-handle"
+              onPointerDown={onSheetDragStart} onPointerMove={onSheetDragMove}
+              onPointerUp={onSheetDragEnd} onPointerCancel={onSheetDragEnd} />
             <div className="expanded-panel-tabs">
               {(['queue','lyrics','related'] as ExpTab[]).map(t => (
                 <button key={t} className={`exp-tab ${tab===t?'active':''}`} onClick={() => setTab(t)}>
@@ -167,8 +225,10 @@ export default function ExpandedPlayer(props: Props) {
               {tab === 'queue' && (
                 <>
                   {queue.map((t, i) => (
-                    <div key={t.id+i} className={`queue-item ${i===currentIndex?'now-playing':''}`} onClick={() => props.onPlayIndex(i)}>
-                      <img src={t.thumbnail} alt={t.title} />
+                    <div key={t.id+i} className={`queue-item ${i===currentIndex?'now-playing':''}${dragIndex===i?' dragging':''}`}
+                      {...(i !== currentIndex ? dragProps(i) : {})}
+                      onClick={() => props.onPlayIndex(i)}>
+                      <TrackImg src={t.thumbnail} alt={t.title} />
                       <div className="queue-item-info">
                         <div className="queue-item-title">{t.title}</div>
                         <div className="queue-item-artist">{t.artist}</div>
@@ -199,7 +259,7 @@ export default function ExpandedPlayer(props: Props) {
                   )}
                   {relatedTracks.map((t, i) => (
                     <div key={t.id+i} className="queue-item" onClick={() => props.onPlay(t, relatedTracks)}>
-                      <img src={t.thumbnail} alt={t.title} />
+                      <TrackImg src={t.thumbnail} alt={t.title} />
                       <div className="queue-item-info">
                         <div className="queue-item-title">{t.title}</div>
                         <div className="queue-item-artist">{t.artist}</div>
