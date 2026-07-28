@@ -37,7 +37,22 @@ export interface Playlist {
 // Track cache (in-memory, keyed by id)
 let trackCache: Record<string, Track> = {};
 
-export function cacheTrack(t: Track) { trackCache[t.id] = t; }
+// Merges into the existing cache entry rather than overwriting it outright —
+// some sources (e.g. /api/upnext, per ytmusic-api's own inconsistent
+// artist-object shape there) return a thinner Track than one already cached
+// from a richer source (Home/search). A blind overwrite let a later, thinner
+// write erase fields like artistId that something else already knew.
+export function cacheTrack(t: Track) {
+  const existing = trackCache[t.id];
+  trackCache[t.id] = existing ? {
+    id: t.id,
+    title: t.title || existing.title,
+    artist: t.artist || existing.artist,
+    artistId: t.artistId ?? existing.artistId,
+    thumbnail: t.thumbnail || existing.thumbnail,
+    duration: t.duration || existing.duration,
+  } : t;
+}
 export function getTrack(id: string): Track | undefined { return trackCache[id]; }
 
 // Fetches metadata for track IDs missing from the cache (e.g. a profile's

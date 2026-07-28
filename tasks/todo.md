@@ -408,6 +408,7 @@ Confirmed via interview-me. Note: a separate, bigger feature (vinyl-record now-p
   - Dependencies: Task 55.
   - Files: `src/components/ExpandedPlayer.tsx`
   - Estimated scope: Small (1 file)
+  - Bug fix (live device test): opening the Video tab produced doubled/clashing audio — the YouTube iframe plays its own native audio by default, on top of the custom audio player that was still running. Fixed by adding `&mute=1` to the embed URL so the iframe is purely visual; audio comes only from the existing custom player.
 
 - [x] **Task 57: Two-pane mobile layout (vinyl/video top, sheet bottom)**
   - Description: Rework `ExpandedPlayer`'s mobile layout into a fixed top pane (vinyl/video + Lagu/Video tabs) and a bottom sheet (existing Antrian/Lirik/Terkait tabs + content) that starts collapsed to a peek/handle.
@@ -417,6 +418,7 @@ Confirmed via interview-me. Note: a separate, bigger feature (vinyl-record now-p
   - Dependencies: Task 56.
   - Files: `src/components/ExpandedPlayer.tsx`, `src/app/globals.css`
   - Estimated scope: Medium (2 files)
+  - Refinement (post-deploy feedback, real YT Music mobile screenshot): moved the Lagu/Video switcher from text tabs above the art into a compact icon-only pill (headphone/video icons) in the top bar, next to the collapse chevron — matches the reference exactly. Kept `VinylArt` for the "Lagu" state (user explicitly confirmed keeping the spinning vinyl over flat album art). Skipped the reference's like/dislike/Lirik/comments chip row — no dislike or comments feature exists in this app, confirmed out of scope for now (user's explicit choice).
 
 - [x] **Task 58: Drag-to-reveal gesture on the bottom sheet**
   - Description: Pointer/touch handlers on the sheet's handle adjusting height/translateY live, snapping open/closed past a threshold — extends the existing `compact-art` shrink transition rather than replacing it.
@@ -427,6 +429,9 @@ Confirmed via interview-me. Note: a separate, bigger feature (vinyl-record now-p
   - Dependencies: Task 57.
   - Files: `src/components/ExpandedPlayer.tsx`, `src/app/globals.css`
   - Estimated scope: Medium (2 files)
+  - Refinement: moved the sheet to dock below `.expanded-controls` (seek bar + playback buttons) instead of overlapping the art — matches the reference, where controls stay visible and only a handle + artist-name peek label show below them until dragged open. `.expanded-controls` gets extra bottom padding on mobile to reserve room for the peek strip.
+  - Bug fix (live device test): drag gesture didn't work at all — root cause was the pointer handlers only being bound to the 4px-tall visual handle bar, an unusable touch target. Fixed by moving the handlers onto a full-width 44px `.expanded-sheet-grip` zone (the handle bar + peek label are now purely decorative children inside it).
+  - Refinement round 2 (real YT Music screenshots): (1) sheet now opens to ~92vh (was 70vh) — "agak full ke atas" per the reference; (2) added `.expanded-sheet-mini-header` (small thumbnail + title/artist + play/pause) shown only when the sheet is open, standing in for the big vinyl/video that's now covered; (3) `.expanded-art-meta` reworked to a centered flex row (title/artist text block + like button beside it, not stacked below); (4) the Video tab's iframe now starts at the current audio position with matching autoplay state when switched to (`videoStart` snapshot, only taken at the switch moment — not continuous re-sync, see code comment on the drift limitation).
 
 - [x] **Task 59: Desktop layout — vinyl + Video tab**
   - Description: Reuse `VinylArt` + the Lagu/Video tab switcher in the existing desktop `ExpandedPlayer` layout (which already has room for Antrian/Lirik/Terkait alongside, no drag-sheet needed there).
@@ -470,9 +475,11 @@ Confirmed via interview-me. Note: a separate, bigger feature (vinyl-record now-p
   - Dependencies: Task 61.
   - Files: `src/components/Queue.tsx`
   - Estimated scope: Small (1 file)
+  - Bug fix (live device test): reorder didn't work on mobile at all — root cause was that native HTML5 drag-and-drop (`draggable`/`dragstart`/`dragover`/`drop`) is a mouse-only API that never fires for touch input on any mobile browser, no polyfill involved. Rewrote `useDragReorder` to use Pointer Events (`onPointerDown`/`onPointerMove`/`onPointerUp` + `document.elementFromPoint` to find the row under the finger) instead — one implementation that actually works for both mouse and touch. Also added a dedicated small drag-handle icon per row (matching the reference's ☰ icon) instead of making the whole row draggable, since a plain touch-drag on the row would otherwise fight with the list's own vertical scroll — only the handle gets `touch-action:none`.
+  - Animation follow-up: dragged row now lifts (scale + shadow, animated via CSS transition) instead of a flat opacity fade, and the hovered drop target gets an animated accent-colored top border indicating where it'll land. CSS-only, no JS position measuring — doesn't animate *other* rows sliding out of the way live during the drag (that would need a FLIP-style position-measuring implementation); the list only visually reorders once the drag ends. Worth upgrading to full FLIP later if the current "highlight + lift" feedback isn't enough.
 
 - [x] **Task 63: Same drag-and-drop in `ExpandedPlayer`'s Antrian tab (mobile)**
-  - Note: implemented alongside Task 57 (touched the same queue-rows block anyway). The currently-playing row is not draggable (`draggable={i !== currentIndex}`) since it isn't in this list's Task 61 contract in the same way as Queue.tsx's up-next-only rows.
+  - Note: implemented alongside Task 57 (touched the same queue-rows block anyway). The currently-playing row has no drag handle at all, matching Task 61's up-next-only contract.
   - Description: Same handlers, same `onReorderQueue` call, wired onto the mobile Antrian tab's row list.
   - Acceptance criteria:
     - [ ] Touch-drag reorders the queue identically to the desktop panel.

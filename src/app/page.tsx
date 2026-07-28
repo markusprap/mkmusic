@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Track, Profile,
-  addRecent, cacheTrack, syncProfile, hydrateTracks,
+  addRecent, cacheTrack, getTrack, syncProfile, hydrateTracks,
 } from '@/lib/store';
 import { Room, createRoomRemote, joinRoomRemote, syncRoomRemote, leaveRoomRemote, fetchRoomRemote } from '@/lib/rooms';
 import { extractColor } from '@/lib/colorExtract';
@@ -20,7 +20,6 @@ import Home from '@/components/Home';
 import Search from '@/components/Search';
 import Discover from '@/components/Discover';
 import Library from '@/components/Library';
-import Queue from '@/components/Queue';
 import Player from '@/components/Player';
 import ExpandedPlayer from '@/components/ExpandedPlayer';
 import Credits from '@/components/Credits';
@@ -97,6 +96,20 @@ export default function App() {
     setQueue(q => [...q, t]);
   }
 
+  function handlePlayNext(t: Track) {
+    cacheTrack(t);
+    setQueue(q => {
+      const next = [...q];
+      next.splice(currentIndex + 1, 0, t);
+      return next;
+    });
+  }
+
+  function handleDismissQueue() {
+    setQueue(q => (currentTrack ? [currentTrack] : []));
+    setCurrentIndex(0);
+  }
+
   function handleSwitchProfile() {
     if (activeRoom && activeProfile) leaveRoomRemote(activeRoom.id, activeProfile.id).catch(() => {});
     setActiveRoom(null);
@@ -110,7 +123,6 @@ export default function App() {
 
   // ── Layout State ─────────────────────────────
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showPanel, setShowPanel] = useState(false);
   const [showExpanded, setShowExpanded] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   // Real in-app navigation history (not the browser's) — activeTab/
@@ -141,7 +153,7 @@ export default function App() {
 
   function openArtist(id: string) { if (id) pushNav({ detail: { type: 'artist', id } }); }
   function openAlbum(id: string) { if (id) pushNav({ detail: { type: 'album', id } }); }
-  function handleTabChange(tab: Tab) { pushNav({ tab, detail: null }); }
+  function handleTabChange(tab: Tab) { setShowExpanded(false); pushNav({ tab, detail: null }); }
 
   // ── Player State ─────────────────────────────
   const [queue, setQueue] = useState<Track[]>([]);
@@ -349,10 +361,15 @@ export default function App() {
   }, [activeProfile]);
 
   const playTrack = useCallback((track: Track, newQueue: Track[]) => {
-    const q = newQueue.length > 0 ? newQueue : [track];
+    const rawQ = newQueue.length > 0 ? newQueue : [track];
+    rawQ.forEach(cacheTrack);
+    // Pull each track back from the cache after caching — cacheTrack merges
+    // rather than overwrites, so this picks up any richer fields (like
+    // artistId) a previous, fuller fetch already knew that this specific
+    // queue's source (e.g. /api/upnext) might not have carried.
+    const q = rawQ.map(t => getTrack(t.id) ?? t);
     const idx = q.findIndex(t => t.id === track.id);
     const validIdx = idx >= 0 ? idx : 0;
-    q.forEach(cacheTrack);
     setQueue(q);
     setCurrentIndex(validIdx);
     setIsPlaying(true);
@@ -365,6 +382,20 @@ export default function App() {
 
     recordPlay(track.id);
   }, [fetchAutoplayQueue, recordPlay]);
+
+  // Starts a fresh radio-style queue seeded from this track (same /api/upnext
+  // used for autoplay, just as the whole new queue instead of an extension).
+  async function handleStartMix(t: Track) {
+    try {
+      const res = await fetch(`/api/upnext?videoId=${t.id}`);
+      const data = await res.json();
+      const rest: Track[] = (data.tracks ?? []).filter((x: Track) => x.id !== t.id);
+      playTrack(t, [t, ...rest]);
+    } catch (err) {
+      console.error('Start mix error:', err);
+      playTrack(t, [t]);
+    }
+  }
 
   const playIndex = useCallback((i: number) => {
     if (i < 0 || i >= queue.length) return;
@@ -465,11 +496,7 @@ export default function App() {
     return <ProfileSelect onSelect={handleProfileSelect} />;
   }
 
-  const appClass = [
-    'app',
-    sidebarCollapsed ? 'collapsed' : '',
-    showPanel ? 'panel-open' : '',
-  ].filter(Boolean).join(' ');
+  const appClass = ['app', sidebarCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ');
 
   return (
     <>
@@ -498,7 +525,38 @@ export default function App() {
 
         {/* Main content */}
         <main className="main-content">
-          {detailView?.type === 'artist' ? (
+          {showExpanded && currentTrack ? (
+            <ExpandedPlayer
+              track={currentTrack}
+              queue={queue}
+              currentIndex={currentIndex}
+              profile={activeProfile}
+              isPlaying={isPlaying}
+              shuffle={shuffle}
+              repeat={repeat}
+              currentTime={currentTime}
+              duration={duration}
+              volume={volume}
+              dynamicRgb={dynamicRgb}
+              onClose={() => setShowExpanded(false)}
+              onPlayPause={handlePlayPause}
+              onNext={handleNext}
+              onPrev={handlePrev}
+              onShuffle={handleShuffle}
+              onRepeat={handleRepeat}
+              onVolume={handleVolume}
+              onSeek={handleSeek}
+              onProfileChange={handleProfileChange}
+              onPlayIndex={playIndex}
+              onPlay={playTrack}
+              onReorderQueue={handleReorderQueue}
+              onOpenAlbum={id => { setShowExpanded(false); openAlbum(id); }}
+              onOpenArtist={id => { setShowExpanded(false); openArtist(id); }}
+              onStartMix={handleStartMix}
+              onPlayNext={handlePlayNext}
+              onDismissQueue={handleDismissQueue}
+            />
+          ) : detailView?.type === 'artist' ? (
             <Artist
               artistId={detailView.id}
               profile={activeProfile}
@@ -587,22 +645,6 @@ export default function App() {
           )}
         </main>
 
-        {/* Right Panel */}
-        {showPanel && (
-          <Queue
-            queue={queue}
-            currentTrack={currentTrack}
-            currentIndex={currentIndex}
-            profile={activeProfile}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            onPlayTrack={playIndex}
-            onProfileChange={handleProfileChange}
-            onReorderQueue={handleReorderQueue}
-            onClose={() => setShowPanel(false)}
-          />
-        )}
-
         {/* Player Bar */}
         <Player
           track={currentTrack}
@@ -613,7 +655,6 @@ export default function App() {
           shuffle={shuffle}
           repeat={repeat}
           volume={volume}
-          showQueue={showPanel}
           showExpanded={showExpanded}
           currentTime={currentTime}
           duration={duration}
@@ -628,7 +669,6 @@ export default function App() {
           onSeek={handleSeek}
           onTimeUpdate={handleTimeUpdate}
           onTrackEnd={handleNext}
-          onToggleQueue={() => setShowPanel(p => !p)}
           onToggleExpanded={() => setShowExpanded(p => !p)}
           onProfileChange={handleProfileChange}
         />
@@ -667,34 +707,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Expanded Player */}
-      {showExpanded && currentTrack && (
-        <ExpandedPlayer
-          track={currentTrack}
-          queue={queue}
-          currentIndex={currentIndex}
-          profile={activeProfile}
-          isPlaying={isPlaying}
-          shuffle={shuffle}
-          repeat={repeat}
-          currentTime={currentTime}
-          duration={duration}
-          volume={volume}
-          dynamicRgb={dynamicRgb}
-          onClose={() => setShowExpanded(false)}
-          onPlayPause={handlePlayPause}
-          onNext={handleNext}
-          onPrev={handlePrev}
-          onShuffle={handleShuffle}
-          onRepeat={handleRepeat}
-          onVolume={handleVolume}
-          onSeek={handleSeek}
-          onProfileChange={handleProfileChange}
-          onPlayIndex={playIndex}
-          onPlay={playTrack}
-          onReorderQueue={handleReorderQueue}
-        />
-      )}
     </>
   );
 }

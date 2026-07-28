@@ -1,5 +1,5 @@
 'use client';
-import { Profile, Track, createPlaylist, addToPlaylist } from '@/lib/store';
+import { Profile, Track, createPlaylist, addToPlaylist, toggleLike } from '@/lib/store';
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import NamePromptModal from './NamePromptModal';
@@ -9,10 +9,18 @@ interface Props {
   track: Track;
   onProfileChange: (p: Profile) => void;
   onAddToQueue?: (t: Track) => void;
+  // All optional — each only renders a menu item when the caller actually
+  // wires it up, same pattern as onAddToQueue already used. Most call sites
+  // (Home cards, Search rows, ...) won't pass these; the expanded player's
+  // now-playing menu does.
+  onStartMix?: (t: Track) => void;
+  onPlayNext?: (t: Track) => void;
+  onOpenArtist?: (id: string) => void;
+  onDismissQueue?: () => void;
   className?: string;
 }
 
-export default function TrackMenu({ profile, track, onProfileChange, onAddToQueue, className }: Props) {
+export default function TrackMenu({ profile, track, onProfileChange, onAddToQueue, onStartMix, onPlayNext, onOpenArtist, onDismissQueue, className }: Props) {
   const [open, setOpen] = useState(false);
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -57,6 +65,27 @@ export default function TrackMenu({ profile, track, onProfileChange, onAddToQueu
     setShowCreatePlaylist(false);
   }
 
+  const liked = (profile?.likedIds || []).includes(track.id);
+  function handleLike() {
+    onProfileChange(toggleLike(profile, track.id));
+    setOpen(false);
+  }
+
+  function handleStartMix() { onStartMix?.(track); setOpen(false); }
+  function handlePlayNext() { onPlayNext?.(track); setOpen(false); }
+  function handleOpenArtist() { if (track.artistId) onOpenArtist?.(track.artistId); setOpen(false); }
+  function handleDismissQueue() { onDismissQueue?.(); setOpen(false); }
+
+  // Native share sheet where available, clipboard copy as the fallback —
+  // no backend endpoint of our own to build a "share link" against, so this
+  // just shares/copies the track's own YouTube URL.
+  function handleShare() {
+    const url = `https://music.youtube.com/watch?v=${track.id}`;
+    if (navigator.share) navigator.share({ title: track.title, text: track.artist, url }).catch(() => {});
+    else navigator.clipboard?.writeText(url).catch(() => {});
+    setOpen(false);
+  }
+
   return (
     <div className={`track-menu-anchor ${className ?? ''}`} onClick={e => e.stopPropagation()}>
       <button ref={btnRef} className="icon-btn" onClick={toggleOpen} title="Tambah ke playlist">
@@ -74,13 +103,20 @@ export default function TrackMenu({ profile, track, onProfileChange, onAddToQueu
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 399 }} onClick={() => setOpen(false)} />
           <div className="ctx-menu" style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, left: 'auto' }}>
+            {onStartMix && <div className="ctx-item" onClick={handleStartMix}>Mulai Mix</div>}
+            {onPlayNext && <div className="ctx-item" onClick={handlePlayNext}>Putar Berikutnya</div>}
             {onAddToQueue && <div className="ctx-item" onClick={addToQueue}>Tambahkan ke Antrian</div>}
+            <div className="ctx-item" onClick={handleLike}>{liked ? 'Hapus dari Lagu Disukai' : 'Tambah ke Lagu Disukai'}</div>
+            <div className="ctx-divider" />
             <div className="ctx-item" style={{ opacity: .6, cursor: 'default' }}>Tambah ke playlist</div>
             {(profile?.playlists || []).map(pl => (
               <div key={pl.id} className="ctx-item" onClick={() => addTo(pl.id)}>{pl.name}</div>
             ))}
-            <div className="ctx-divider" />
             <div className="ctx-item" onClick={createNew}>+ Playlist Baru</div>
+            {(onOpenArtist || onDismissQueue) && <div className="ctx-divider" />}
+            {onOpenArtist && track.artistId && <div className="ctx-item" onClick={handleOpenArtist}>Ke Artis</div>}
+            <div className="ctx-item" onClick={handleShare}>Bagikan</div>
+            {onDismissQueue && <div className="ctx-item" onClick={handleDismissQueue}>Kosongkan Antrian</div>}
           </div>
         </>,
         document.body

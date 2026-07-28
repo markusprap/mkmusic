@@ -28,7 +28,10 @@ export default function Credits({ onClose }: Props) {
       }}>
         <img src="/foto-profile.jpeg" alt="Markus Prap Kurniawan" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }} />
         <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Markus Prap Kurniawan</h2>
-        <p style={{ fontSize: 13, color: '#b3b3b3', marginBottom: 16 }}>Developer mkmusic</p>
+        <p style={{ fontSize: 13, color: '#b3b3b3', marginBottom: 4 }}>Developer mkmusic</p>
+        <p style={{ fontSize: 13, color: '#b3b3b3', textAlign: 'center', lineHeight: 1.5, marginBottom: 16 }}>
+          Saya akan lawan!
+        </p>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
           {LINKS.map(l => (
@@ -39,16 +42,7 @@ export default function Credits({ onClose }: Props) {
           ))}
         </div>
 
-        <a href="https://teer.id/programmergenz" target="_blank" rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, background: '#ffd600', color: '#000',
-            fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 24, width: '100%',
-            justifyContent: 'center', marginBottom: 12,
-          }}>
-          ☕ Dukung di Trakteer
-        </a>
-
-        <button onClick={onClose} style={{ color: '#b3b3b3', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={onClose} style={{ color: '#b3b3b3', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 }}>
           Tutup
         </button>
       </div>

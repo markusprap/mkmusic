@@ -3,6 +3,8 @@ import { Track, Profile, cacheTrack, getTrack, hydrateTracks } from '@/lib/store
 import { useState, useEffect, useRef, useCallback } from 'react';
 import TrackMenu from './TrackMenu';
 import TrackImg from './TrackImg';
+import ScrollArrows from './ScrollArrows';
+import { useHScroll } from '@/lib/useHScroll';
 
 const MOODS = [
   { name: 'Energik 🔥', color: '#e91e8c', query: 'energetic workout music' },
@@ -30,55 +32,6 @@ function toHomeItems(tracks: Track[]): HomeItem[] {
   return tracks.slice(0, 10).map(t => ({
     type: 'SONG', id: t.id, videoId: t.id, playlistId: null, name: t.title, artist: t.artist, artistId: t.artistId ?? null, thumbnail: t.thumbnail,
   }));
-}
-
-// Desktop-only Prev/Next affordance for horizontally-scrolling rows — mobile
-// relies on touch swipe (hidden there via the .scroll-arrows mobile rule).
-// Each row instance owns its own ref/position, not shared state.
-//
-// The row element only exists once its data has loaded (rows render a
-// skeleton, or nothing, until then) — a plain useRef doesn't re-run the
-// measuring effect when that swap happens, so canPrev/canNext would get
-// stuck at their initial `false` forever. Using state as the ref callback
-// makes the DOM attachment itself the trigger: React re-invokes `setEl`
-// (and therefore re-measures) exactly when the real element mounts.
-function useHScroll<T extends HTMLElement>() {
-  const [el, setEl] = useState<T | null>(null);
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(false);
-
-  const update = useCallback(() => {
-    if (!el) return;
-    setCanPrev(el.scrollLeft > 4);
-    setCanNext(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
-  }, [el]);
-
-  useEffect(() => {
-    if (!el) return;
-    update();
-    el.addEventListener('scroll', update);
-    window.addEventListener('resize', update);
-    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
-  }, [el, update]);
-
-  return {
-    ref: setEl, canPrev, canNext,
-    scrollPrev: () => el?.scrollBy({ left: -el.clientWidth * 0.85, behavior: 'smooth' }),
-    scrollNext: () => el?.scrollBy({ left: el.clientWidth * 0.85, behavior: 'smooth' }),
-  };
-}
-
-function ScrollArrows({ canPrev, canNext, onPrev, onNext }: { canPrev: boolean; canNext: boolean; onPrev: () => void; onNext: () => void }) {
-  return (
-    <div className="scroll-arrows">
-      <button className="topbar-nav-btn" disabled={!canPrev} onClick={onPrev} title="Sebelumnya">
-        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <button className="topbar-nav-btn" disabled={!canNext} onClick={onNext} title="Selanjutnya">
-        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>
-    </div>
-  );
 }
 
 // One-off card, not a scroll row — no arrows needed for a single item.

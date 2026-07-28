@@ -2,6 +2,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
+import PasswordInput from './PasswordInput';
 
 type Mode = 'signin' | 'signup';
 
@@ -38,30 +39,6 @@ const Turnstile = forwardRef<TurnstileHandle, { onToken: (t: string) => void }>(
   );
 });
 Turnstile.displayName = 'Turnstile';
-
-function PasswordInput(props: { placeholder: string; value: string; onChange: (v: string) => void }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div style={{ position: 'relative' }}>
-      <input type={visible ? 'text' : 'password'} required minLength={6} placeholder={props.placeholder}
-        value={props.value} onChange={e => props.onChange(e.target.value)}
-        style={{ ...inputStyle, paddingRight: 40 }} />
-      <button type="button" onClick={() => setVisible(v => !v)} tabIndex={-1}
-        style={{ position: 'absolute', right: 10, top: 0, bottom: 0, background: 'none', border: 'none', color: '#b3b3b3', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        {visible ? (
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-            <line x1="1" y1="1" x2="23" y2="23" />
-          </svg>
-        )}
-      </button>
-    </div>
-  );
-}
 
 export default function Login() {
   const [mode, setMode] = useState<Mode>('signin');
@@ -149,9 +126,9 @@ export default function Login() {
             )}
             <input type="email" required placeholder="Email" value={email}
               onChange={e => setEmail(e.target.value)} style={inputStyle} />
-            <PasswordInput placeholder="Password" value={password} onChange={setPassword} />
+            <PasswordInput required placeholder="Password" value={password} onChange={setPassword} />
             {mode === 'signup' && (
-              <PasswordInput placeholder="Konfirmasi Password" value={confirmPassword} onChange={setConfirmPassword} />
+              <PasswordInput required placeholder="Konfirmasi Password" value={confirmPassword} onChange={setConfirmPassword} />
             )}
             <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
             {successMsg && <p style={{ color: '#1db954', fontSize: 13 }}>{successMsg}</p>}
