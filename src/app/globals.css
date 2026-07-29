@@ -470,9 +470,13 @@ input[type=range].vol-slider,input[type=range].exp-vol-slider{background:linear-
   .expanded-art-col{flex:none;width:min(70vw,280px);align-self:center}
   /* min-height reserves room for a full 2-line title (24px * 1.5 line-height
      * 2 lines) + margin + the artist line, so a short 1-line title doesn't
-     shrink the block and shift the artist name/gap-to-seekbar around —
-     content is centered inside that reserved space instead. */
-  .expanded-art-meta{display:flex;flex-direction:column;justify-content:center;min-height:100px;margin-top:28px}
+     shrink the block and shift the artist name/gap-to-seekbar around.
+     justify-content:space-between (not center) pins the title to the top
+     of that reserved box and the artist name to the bottom of it — any
+     slack from a shorter title lands in the gap *between* them instead of
+     eating into the vinyl-to-title or title-to-seekbar gaps, so both stay
+     constant and a full 2-line title never crowds the seekbar. */
+  .expanded-art-meta{display:flex;flex-direction:column;justify-content:space-between;min-height:100px;margin-top:28px}
   /* Video mode goes edge-to-edge at the top instead of staying inside the
      narrow vinyl-sized column — negative margin cancels .expanded-body's
      own side padding just for this one child. */
@@ -505,7 +509,7 @@ input[type=range].vol-slider,input[type=range].exp-vol-slider{background:linear-
      whole row, just the already-existing gray/white active state). */
   .expanded-sheet:not(.open) .expanded-panel-body{opacity:0;pointer-events:none}
   .expanded-panel-body{transition:opacity var(--t-fast)}
-  .expanded-controls{display:block;padding:0 20px 84px}
+  .expanded-controls{display:block;padding:32px 20px 84px}
   .expanded-vol-row{display:none}
   .expanded-topbar{padding:16px 20px}
   .page-header-gradient{padding:20px 16px 20px}
