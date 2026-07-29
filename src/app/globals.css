@@ -463,10 +463,16 @@ input[type=range].vol-slider,input[type=range].exp-vol-slider{background:linear-
   /* Vinyl position and title-to-vinyl gap are two independent knobs now
      (padding-top here for the vinyl, margin-top on .expanded-art-meta for
      the title) instead of one shared flex `gap` — a shared gap moved both
-     at once whenever either needed tuning, fighting each other. */
-  .expanded-body{overflow-y:auto;flex-direction:column;align-items:center;justify-content:flex-start;padding:15dvh 20px 16px;gap:20px}
+     at once whenever either needed tuning, fighting each other. Bottom
+     padding here is kept equal to that margin-top so the vinyl-to-title
+     gap matches the title-to-seekbar gap. */
+  .expanded-body{overflow-y:auto;flex-direction:column;align-items:center;justify-content:flex-start;padding:15dvh 20px 28px;gap:20px}
   .expanded-art-col{flex:none;width:min(70vw,280px);align-self:center}
-  .expanded-art-meta{display:block;margin-top:60px}
+  /* min-height reserves room for a full 2-line title (24px * 1.5 line-height
+     * 2 lines) + margin + the artist line, so a short 1-line title doesn't
+     shrink the block and shift the artist name/gap-to-seekbar around —
+     content is centered inside that reserved space instead. */
+  .expanded-art-meta{display:flex;flex-direction:column;justify-content:center;min-height:100px;margin-top:28px}
   /* Video mode goes edge-to-edge at the top instead of staying inside the
      narrow vinyl-sized column — negative margin cancels .expanded-body's
      own side padding just for this one child. */
