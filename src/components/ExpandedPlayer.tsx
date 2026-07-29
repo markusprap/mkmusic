@@ -350,7 +350,10 @@ export default function ExpandedPlayer(props: Props) {
             )}
             <div className="expanded-art-meta">
               <div className="expanded-track-name">{track.title}</div>
-              <div className="expanded-artist-name">{track.artist}</div>
+              <div className="expanded-artist-name" style={{ cursor: track.artistId ? 'pointer' : 'default' }}
+                onClick={() => track.artistId && props.onOpenArtist(track.artistId)}>
+                {track.artist}
+              </div>
             </div>
           </div>
 
@@ -376,7 +379,10 @@ export default function ExpandedPlayer(props: Props) {
               </div>
               <div className="expanded-sheet-mini-info">
                 <div className="expanded-sheet-mini-title">{track.title}</div>
-                <div className="expanded-sheet-mini-artist">{track.artist}</div>
+                <div className="expanded-sheet-mini-artist" style={{ cursor: track.artistId ? 'pointer' : 'default' }}
+                  onClick={() => track.artistId && props.onOpenArtist(track.artistId)}>
+                  {track.artist}
+                </div>
               </div>
               <button className="icon-btn" onClick={props.onPlayPause}>
                 <PlayPauseIcon size={20} />
