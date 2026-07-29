@@ -214,6 +214,29 @@ export default function App() {
     }
   }, [currentTrack?.id, queue.length, currentIndex, autoplay, fetchAutoplayQueue, queue]);
 
+  // ── Backfill artistId for the current track if missing ─────
+  // /api/upnext can't supply one — ytmusic-api's getUpNexts only parses a
+  // plain artist-name string there (no channel/browse ID at all), so a
+  // track that entered the queue via autoplay/up-next (rather than
+  // Home/Search, which do carry a real artistId) has none until re-fetched
+  // from a richer source. /api/tracks uses getSong/getVideo, which pull the
+  // video's real channelId as artistId — good enough to open the artist page.
+  useEffect(() => {
+    if (!currentTrack || currentTrack.artistId) return;
+    let cancelled = false;
+    fetch(`/api/tracks?ids=${currentTrack.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const enriched: Track | undefined = d.tracks?.[0];
+        if (!enriched?.artistId) return;
+        cacheTrack(enriched);
+        setQueue(q => q.map(t => t.id === enriched.id ? { ...t, artistId: enriched.artistId } : t));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentTrack?.id, currentTrack?.artistId]);
+
   // ── Dynamic color from album art ─────────────
   useEffect(() => {
     if (!currentTrack?.thumbnail) return;
