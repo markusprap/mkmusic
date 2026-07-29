@@ -473,12 +473,12 @@ input[type=range].vol-slider,input[type=range].exp-vol-slider{background:linear-
   /* min-height reserves room for a full 2-line title (24px * 1.5 line-height
      * 2 lines) + margin + the artist line, so a short 1-line title doesn't
      shrink the block and shift the artist name/gap-to-seekbar around.
-     justify-content:space-between (not center) pins the title to the top
-     of that reserved box and the artist name to the bottom of it — any
-     slack from a shorter title lands in the gap *between* them instead of
-     eating into the vinyl-to-title or title-to-seekbar gaps, so both stay
-     constant and a full 2-line title never crowds the seekbar. */
-  .expanded-art-meta{display:flex;flex-direction:column;justify-content:space-between;min-height:100px;margin-top:28px}
+     justify-content:center (not space-between) keeps title+artist wrapped
+     together as one tight unit (just the 4px margin between them) — that
+     pair moves as a whole within the reserved space instead of being
+     stretched apart, so there's never a visible gap opening up between
+     the title and the artist name. */
+  .expanded-art-meta{display:flex;flex-direction:column;justify-content:center;min-height:100px;margin-top:28px}
   /* Video mode goes edge-to-edge at the top instead of staying inside the
      narrow vinyl-sized column — negative margin cancels .expanded-body's
      own side padding just for this one child. */
