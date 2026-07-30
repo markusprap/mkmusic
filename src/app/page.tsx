@@ -125,6 +125,7 @@ export default function App() {
   // ── Layout State ─────────────────────────────
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showExpanded, setShowExpanded] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   // Real in-app navigation history (not the browser's) — activeTab/
   // searchQuery/detailView are derived reads of the current entry, not
@@ -134,27 +135,62 @@ export default function App() {
   const [navIndex, setNavIndex] = useState(0);
   const { tab: activeTab, searchQuery, detail: detailView } = navHistory[navIndex];
 
+  // ── Browser back/forward integration ─────────
+  // navIndex/showExpanded/sheetOpen above are the "screen" the app is
+  // currently showing. Every screen change also pushes one real
+  // history.pushState snapshot, so the device's back button/swipe-back
+  // gesture undoes exactly one of them (closing the sheet, then the
+  // player, then stepping back through tabs/detail views) instead of
+  // leaving the app entirely — previously these were pure in-memory
+  // state, so a real back gesture fell straight through to whatever page
+  // loaded before mkmusic did (usually the login screen). Anything that
+  // *closes* one of these — drag-to-dismiss, a chevron, the in-app back
+  // button — goes through history.back() rather than setting state
+  // directly, so the change always happens in the popstate handler below
+  // and can never drift out of sync with the real history stack.
+  interface ScreenSnapshot { navIndex: number; showExpanded: boolean; sheetOpen: boolean }
+  function pushScreen(next: Partial<ScreenSnapshot>) {
+    const snap: ScreenSnapshot = { navIndex, showExpanded, sheetOpen, ...next };
+    if (next.navIndex !== undefined) setNavIndex(next.navIndex);
+    if (next.showExpanded !== undefined) setShowExpanded(next.showExpanded);
+    if (next.sheetOpen !== undefined) setSheetOpen(next.sheetOpen);
+    window.history.pushState(snap, '');
+  }
+  useEffect(() => {
+    window.history.replaceState({ navIndex: 0, showExpanded: false, sheetOpen: false }, '');
+    function onPopState(e: PopStateEvent) {
+      const snap = e.state as Partial<ScreenSnapshot> | null;
+      setNavIndex(snap?.navIndex ?? 0);
+      setShowExpanded(snap?.showExpanded ?? false);
+      setSheetOpen(snap?.sheetOpen ?? false);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   // Explicit navigation (tab switch, opening a detail view, a submitted
   // search) — truncates any "forward" entries past the current pointer,
-  // same as a real browser after navigating post-Back.
+  // same as a real browser after navigating post-Back. Always collapses
+  // the expanded player/sheet too, same as manually closing them first.
   function pushNav(partial: Partial<NavLocation>) {
     const next: NavLocation = { ...navHistory[navIndex], ...partial };
     setNavHistory(h => [...h.slice(0, navIndex + 1), next]);
-    setNavIndex(i => i + 1);
+    pushScreen({ navIndex: navIndex + 1, showExpanded: false, sheetOpen: false });
   }
   // In-place update, no new history entry — for live search-box typing,
   // which would otherwise flood Back/Forward with one entry per keystroke.
   function replaceNav(partial: Partial<NavLocation>) {
     setNavHistory(h => h.map((loc, i) => i === navIndex ? { ...loc, ...partial } : loc));
   }
-  function goBack() { setNavIndex(i => Math.max(0, i - 1)); }
-  function goForward() { setNavIndex(i => Math.min(navHistory.length - 1, i + 1)); }
+  function goBack() { window.history.back(); }
+  function goForward() { window.history.forward(); }
   const canGoBack = navIndex > 0;
   const canGoForward = navIndex < navHistory.length - 1;
 
   function openArtist(id: string) { if (id) pushNav({ detail: { type: 'artist', id } }); }
   function openAlbum(id: string) { if (id) pushNav({ detail: { type: 'album', id } }); }
-  function handleTabChange(tab: Tab) { setShowExpanded(false); pushNav({ tab, detail: null }); }
+  function handleTabChange(tab: Tab) { pushNav({ tab, detail: null }); }
+  function openExpanded() { pushScreen({ showExpanded: true }); }
 
   // ── Player State ─────────────────────────────
   const [queue, setQueue] = useState<Track[]>([]);
@@ -562,7 +598,10 @@ export default function App() {
               duration={duration}
               volume={volume}
               dynamicRgb={dynamicRgb}
-              onClose={() => setShowExpanded(false)}
+              onClose={() => window.history.back()}
+              sheetOpen={sheetOpen}
+              onOpenSheet={() => pushScreen({ sheetOpen: true })}
+              onCloseSheet={() => window.history.back()}
               onPlayPause={handlePlayPause}
               onNext={handleNext}
               onPrev={handlePrev}
@@ -574,8 +613,8 @@ export default function App() {
               onPlayIndex={playIndex}
               onPlay={playTrack}
               onReorderQueue={handleReorderQueue}
-              onOpenAlbum={id => { setShowExpanded(false); openAlbum(id); }}
-              onOpenArtist={id => { setShowExpanded(false); openArtist(id); }}
+              onOpenAlbum={openAlbum}
+              onOpenArtist={openArtist}
               onStartMix={handleStartMix}
               onPlayNext={handlePlayNext}
               onDismissQueue={handleDismissQueue}
@@ -693,7 +732,7 @@ export default function App() {
           onSeek={handleSeek}
           onTimeUpdate={handleTimeUpdate}
           onTrackEnd={handleNext}
-          onToggleExpanded={() => setShowExpanded(p => !p)}
+          onToggleExpanded={() => { if (showExpanded) window.history.back(); else openExpanded(); }}
           onProfileChange={handleProfileChange}
         />
       </div>
@@ -709,7 +748,7 @@ export default function App() {
 
       {/* Mobile Mini Player (above bottom nav) */}
       {currentTrack && (
-        <div className="mini-player" onClick={() => setShowExpanded(true)}>
+        <div className="mini-player" onClick={openExpanded}>
           <div className="mini-player-progress">
             <div className="mini-player-bar" style={{width: duration > 0 ? `${(currentTime/duration)*100}%` : '0%'}} />
           </div>
