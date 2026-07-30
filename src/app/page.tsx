@@ -149,15 +149,28 @@ export default function App() {
   // directly, so the change always happens in the popstate handler below
   // and can never drift out of sync with the real history stack.
   interface ScreenSnapshot { navIndex: number; showExpanded: boolean; sheetOpen: boolean }
+  // Next's App Router tags every history entry it owns with __NA (+ its own
+  // RSC tree under __PRIVATE_NEXTJS_INTERNALS_TREE) and does a *hard reload*
+  // in its own popstate handler whenever it lands on an entry missing __NA
+  // (its documented fallback for "this entry wasn't pushed by app-router").
+  // Calling the raw history.pushState/replaceState with a plain object wipes
+  // those keys, so every entry we create has to carry over whatever Next
+  // already stamped onto the current entry, or the very next back/forward
+  // triggers exactly that reload — straight back to a fresh, unauthenticated
+  // load (profile-select).
+  function withNextInternals(data: ScreenSnapshot) {
+    const current = window.history.state as { __NA?: boolean; __PRIVATE_NEXTJS_INTERNALS_TREE?: unknown } | null;
+    return { ...data, __NA: current?.__NA, __PRIVATE_NEXTJS_INTERNALS_TREE: current?.__PRIVATE_NEXTJS_INTERNALS_TREE };
+  }
   function pushScreen(next: Partial<ScreenSnapshot>) {
     const snap: ScreenSnapshot = { navIndex, showExpanded, sheetOpen, ...next };
     if (next.navIndex !== undefined) setNavIndex(next.navIndex);
     if (next.showExpanded !== undefined) setShowExpanded(next.showExpanded);
     if (next.sheetOpen !== undefined) setSheetOpen(next.sheetOpen);
-    window.history.pushState(snap, '');
+    window.history.pushState(withNextInternals(snap), '');
   }
   useEffect(() => {
-    window.history.replaceState({ navIndex: 0, showExpanded: false, sheetOpen: false }, '');
+    window.history.replaceState(withNextInternals({ navIndex: 0, showExpanded: false, sheetOpen: false }), '');
     function onPopState(e: PopStateEvent) {
       const snap = e.state as Partial<ScreenSnapshot> | null;
       const restored: ScreenSnapshot = {
@@ -173,7 +186,7 @@ export default function App() {
       // before mkmusic (which forced a reload back to profile-select
       // instead of just... staying on the app's own home screen).
       if (restored.navIndex === 0 && !restored.showExpanded && !restored.sheetOpen) {
-        window.history.pushState(restored, '');
+        window.history.pushState(withNextInternals(restored), '');
       }
     }
     window.addEventListener('popstate', onPopState);
