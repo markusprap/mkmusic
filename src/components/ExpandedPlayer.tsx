@@ -29,6 +29,9 @@ interface Props {
   volume: number;
   dynamicRgb: string;
   onClose: () => void;
+  sheetOpen: boolean;
+  onOpenSheet: () => void;
+  onCloseSheet: () => void;
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -149,7 +152,11 @@ export default function ExpandedPlayer(props: Props) {
   // uses a fixed peek height + 70vh sheet height rather than measuring the
   // real content height — a live device only needs "past halfway" snapping,
   // not pixel-perfect sizing.
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // sheetOpen itself is controlled by the parent (page.tsx) — it pushes a
+  // real browser history entry when the sheet opens, so the device's
+  // back button/swipe-back gesture closes the sheet instead of leaving
+  // the app. See page.tsx's history-sync effect for the other half.
+  const { sheetOpen } = props;
   const [dragOffset, setDragOffset] = useState<number | null>(null);
   const dragStart = useRef<{ y: number; base: number } | null>(null);
   const SHEET_PEEK = 110; // keep in sync with .expanded-sheet's translateY in globals.css — tall enough to show the handle + full tab row while closed
@@ -168,9 +175,11 @@ export default function ExpandedPlayer(props: Props) {
   function onSheetDragEnd() {
     if (!dragStart.current) return;
     const max = closedOffset();
-    setSheetOpen((dragOffset ?? dragStart.current.base) < max / 2);
+    const willOpen = (dragOffset ?? dragStart.current.base) < max / 2;
     dragStart.current = null;
     setDragOffset(null);
+    if (willOpen && !sheetOpen) props.onOpenSheet();
+    else if (!willOpen && sheetOpen) props.onCloseSheet();
   }
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(false);
@@ -394,7 +403,7 @@ export default function ExpandedPlayer(props: Props) {
             <div className="expanded-panel-tabs">
               {(['queue','lyrics','related'] as ExpTab[]).map(t => (
                 <button key={t} className={`exp-tab ${tab===t?'active':''}`}
-                  onClick={() => { setTab(t); setSheetOpen(true); }}>
+                  onClick={() => { setTab(t); if (!sheetOpen) props.onOpenSheet(); }}>
                   {t==='queue'?'Antrian':t==='lyrics'?'Lirik':'Terkait'}
                 </button>
               ))}
