@@ -95,10 +95,16 @@ export default function InstallBanner() {
 
   return (
     <div className="install-banner">
-      <span className="install-banner-icon">📲</span>
+      <svg className="install-banner-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/>
+      </svg>
       <p className="install-banner-text">mkmusic bisa diinstall biar akses lebih cepat, loh!</p>
       <button className="install-banner-cta" onClick={install}>Install</button>
-      <button className="install-banner-close" onClick={dismiss} aria-label="Tutup">✕</button>
+      <button className="install-banner-close" onClick={dismiss} aria-label="Tutup">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
     </div>
   );
 }
