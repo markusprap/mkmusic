@@ -160,9 +160,21 @@ export default function App() {
     window.history.replaceState({ navIndex: 0, showExpanded: false, sheetOpen: false }, '');
     function onPopState(e: PopStateEvent) {
       const snap = e.state as Partial<ScreenSnapshot> | null;
-      setNavIndex(snap?.navIndex ?? 0);
-      setShowExpanded(snap?.showExpanded ?? false);
-      setSheetOpen(snap?.sheetOpen ?? false);
+      const restored: ScreenSnapshot = {
+        navIndex: snap?.navIndex ?? 0,
+        showExpanded: snap?.showExpanded ?? false,
+        sheetOpen: snap?.sheetOpen ?? false,
+      };
+      setNavIndex(restored.navIndex);
+      setShowExpanded(restored.showExpanded);
+      setSheetOpen(restored.sheetOpen);
+      // Nothing left to undo in-app — re-arm a history entry so one more
+      // back press doesn't fall through to whatever real page loaded
+      // before mkmusic (which forced a reload back to profile-select
+      // instead of just... staying on the app's own home screen).
+      if (restored.navIndex === 0 && !restored.showExpanded && !restored.sheetOpen) {
+        window.history.pushState(restored, '');
+      }
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
