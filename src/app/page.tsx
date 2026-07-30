@@ -24,6 +24,7 @@ import Player from '@/components/Player';
 import ExpandedPlayer from '@/components/ExpandedPlayer';
 import Credits from '@/components/Credits';
 import SupportBanner from '@/components/SupportBanner';
+import InstallBanner from '@/components/InstallBanner';
 import JoinRoomModal from '@/components/JoinRoomModal';
 import RoomCreatedModal from '@/components/RoomCreatedModal';
 import Artist from '@/components/Artist';
@@ -698,6 +699,7 @@ export default function App() {
       </div>
 
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
+      <InstallBanner />
       <SupportBanner />
       {showJoinRoom && <JoinRoomModal onJoin={submitJoinRoom} onClose={() => setShowJoinRoom(false)} />}
       {showRoomCreated && <RoomCreatedModal code={showRoomCreated} onClose={() => setShowRoomCreated(null)} />}
