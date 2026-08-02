@@ -330,6 +330,17 @@ thumbnails.
 ## Phase 13 done criteria
 - [ ] All 5 sub-phases (13A-13E) shipped, typecheck clean, ponytail-review clean per sub-phase, no regression to Home/Search/Queue/Player behavior already built this session.
 
+## Phase 14: Onboarding artist-step redesign (remove genre step)
+- [x] Task 67: Remove the genre-chip screen from `Onboarding.tsx` — artist selection becomes step 1 of 2, track selection becomes step 2 of 2.
+- [x] Task 68: Auto-seed the artist/track pool on mount using the existing `GENRES` list directly (no user-facing genre picker) instead of gating the fetch behind a chip selection.
+- [x] Task 69: Redesign the artist step to match the reference screenshots — search input (queries `/api/search`, artists only) + 3-column avatar grid + trailing "More for you" tile that reveals more of the fetched pool.
+
+### Checkpoint 14
+- [ ] Onboarding opens straight into the artist search/grid screen (2-dot progress), typing a query swaps the grid to search results, "More for you" reveals more of the default pool, track step and finish/skip behavior unchanged.
+
+## Phase 14 done criteria
+- [ ] `npx tsc --noEmit` clean, ponytail-review clean, manual click-through in dev server confirms both reference screenshots' layout.
+
 ## Open Questions
 - 13B: exact root cause (missing migration vs. Realtime auth) unconfirmed without a live test — Task 51's logging is what will answer this for real.
 - 13C: whether the mobile drag-sheet needs velocity-based "flick" snapping (like a real bottom sheet) or a simple past-halfway-point threshold is enough — defaulting to the simpler threshold unless it feels wrong in testing.
