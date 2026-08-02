@@ -534,3 +534,49 @@ bypassing a CAPTCHA isn't something this assistant does, session or no
 session — so these specific items can only be verified by the user
 directly, not delegated further. Everything not blocked by that has been
 done.
+
+## Phase 14: Onboarding artist-step redesign (remove genre step)
+
+Driven by two reference screenshots of YT Music's real onboarding: a
+"Choose 3 or more artists" screen with a search box and a 3-column avatar
+grid, last tile a "More for you" button. The genre-chip screen that
+currently precedes artist-selection in `Onboarding.tsx` is dropped
+entirely — its only job was seeding the search query for the artist/track
+pool, which can be done with the existing `GENRES` list directly.
+
+- [x] **Task 67: Drop the genre-chip step, renumber the flow to 2 steps**
+  - Description: Remove the `step === 1` genre-chip JSX block, the `genres` state, `chipStyle`, and `toStep2` from `Onboarding.tsx`. `step` becomes `1 | 2` (was `1 | 2 | 3`): step 1 is artist selection (old step 2), step 2 is track selection (old step 3). Update the progress-dot count from 3 to 2 and the `skip()` fallback chain accordingly (step 1 skip → `finishUsing(genreTracks)`, step 2 skip → `finishUsing(tracks)`, matching the old step-2/step-3 behavior).
+  - Acceptance criteria:
+    - [ ] Opening onboarding shows the artist-selection screen first, never the genre chips.
+    - [ ] Progress indicator shows 2 dots, "Lewati" still ends onboarding with a non-empty `likedIds` fallback at each step.
+  - Verification: `npx tsc --noEmit`; manual click-through in dev server.
+  - Dependencies: none.
+  - Files: `src/components/Onboarding.tsx`
+  - Estimated scope: S (1 file)
+
+- [x] **Task 68: Auto-seed the artist/track pool on mount**
+  - Description: `fetchGenreArtistsAndTracks` currently maps over the user-picked `genres` state. Since there's no genre picker anymore, have it map over the `GENRES` constant directly, and call it once in a mount `useEffect` (populating `artists` + `genreTracks` + a `loading` flag) instead of gating it behind a "Lanjut" click.
+  - Acceptance criteria:
+    - [ ] Artist grid is populated without any prior user input.
+    - [ ] A brief loading state shows while the initial fetch is in flight.
+  - Verification: `npx tsc --noEmit`; manual check with network throttling.
+  - Dependencies: Task 67.
+  - Files: `src/components/Onboarding.tsx`
+  - Estimated scope: XS (1 file)
+
+- [x] **Task 69: Redesign the artist step — search + 3-col grid + "More for you"**
+  - Description: Replace the flex-wrap avatar row with a 3-column CSS grid matching the reference screenshots. Add a search input above the grid: typing queries `/api/search?q=`, and its `artists` array replaces the grid while non-empty (debounced ~250ms to avoid a request per keystroke); clearing the query reverts to the default pool. Add a trailing "More for you" tile (same size as an avatar) shown only when not searching and more of the fetched pool remains beyond what's currently visible; clicking it reveals more (e.g. +8) until the pool is exhausted, then it disappears.
+  - Acceptance criteria:
+    - [ ] Typing in search swaps the grid to matching artists; clearing restores the default pool.
+    - [ ] "More for you" reveals more artists and disappears once the pool is exhausted.
+    - [ ] Selecting/deselecting an artist (in either view) still toggles `artistIds` and the green selection ring.
+  - Verification: `npx tsc --noEmit`; manual click-through against both reference screenshots.
+  - Dependencies: Task 68.
+  - Files: `src/components/Onboarding.tsx`
+  - Estimated scope: S (1 file)
+
+### Checkpoint 14
+- [ ] Onboarding opens straight into the artist search/grid screen (2-dot progress), typing a query swaps the grid to search results, "More for you" reveals more of the default pool, track step and finish/skip behavior unchanged.
+
+## Phase 14 done criteria
+- [ ] `npx tsc --noEmit` clean, ponytail-review clean, manual click-through in dev server confirms both reference screenshots' layout.

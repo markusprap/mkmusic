@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Profile, Track, cacheTrack, syncProfile } from '@/lib/store';
 import { screenStyle } from './ProfileSelect';
 
 const GENRES = ['Pop', 'Dangdut', 'Hip-Hop', 'R&B', 'Rock', 'Indie', 'EDM', 'Jazz', 'Religi', 'Reggae'];
+const PAGE_SIZE = 9;
 
 interface ArtistPick { id: string; name: string; thumbnail: string }
 interface Props { profile: Profile; onDone: (profile: Profile) => void }
@@ -13,14 +14,16 @@ function toggle(list: string[], id: string): string[] {
 }
 
 export default function Onboarding({ profile, onDone }: Props) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
-  const [genres, setGenres] = useState<string[]>([]);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [loading, setLoading] = useState(true);
   const [artists, setArtists] = useState<ArtistPick[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [artistIds, setArtistIds] = useState<string[]>([]);
   const [genreTracks, setGenreTracks] = useState<Track[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [trackIds, setTrackIds] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ArtistPick[] | null>(null);
 
   async function finish(likedIds: string[]) {
     const updated = { ...profile, likedIds };
@@ -35,32 +38,38 @@ export default function Onboarding({ profile, onDone }: Props) {
     return finish(pool.slice(0, 10).map(t => t.id));
   }
 
-  async function fetchGenreArtistsAndTracks(): Promise<{ artists: ArtistPick[]; tracks: Track[] }> {
-    const results = await Promise.all(
-      genres.map(g => fetch(`/api/search?q=${encodeURIComponent(g)}`).then(r => r.json()).catch(() => ({ artists: [], tracks: [] })))
-    );
-    const seenA = new Set<string>(), pickedArtists: ArtistPick[] = [];
-    const seenT = new Set<string>(), pickedTracks: Track[] = [];
-    for (const r of results) {
-      for (const a of (r.artists ?? [])) { if (!seenA.has(a.id)) { seenA.add(a.id); pickedArtists.push(a); } }
-      for (const t of (r.tracks ?? [])) { if (!seenT.has(t.id)) { seenT.add(t.id); pickedTracks.push(t); } }
-    }
-    pickedTracks.forEach(cacheTrack);
-    return { artists: pickedArtists.slice(0, 24), tracks: pickedTracks };
-  }
+  // Seeds the artist/track pool from a fixed genre spread instead of a
+  // user-facing chip picker — same source data, no extra screen to get through.
+  useEffect(() => {
+    (async () => {
+      const results = await Promise.all(
+        GENRES.map(g => fetch(`/api/search?q=${encodeURIComponent(g)}`).then(r => r.json()).catch(() => ({ artists: [], tracks: [] })))
+      );
+      const seenA = new Set<string>(), pickedArtists: ArtistPick[] = [];
+      const seenT = new Set<string>(), pickedTracks: Track[] = [];
+      for (const r of results) {
+        for (const a of (r.artists ?? [])) { if (!seenA.has(a.id)) { seenA.add(a.id); pickedArtists.push(a); } }
+        for (const t of (r.tracks ?? [])) { if (!seenT.has(t.id)) { seenT.add(t.id); pickedTracks.push(t); } }
+      }
+      pickedTracks.forEach(cacheTrack);
+      setArtists(pickedArtists);
+      setGenreTracks(pickedTracks);
+      setLoading(false);
+    })();
+  }, []);
 
-  async function toStep2() {
-    if (genres.length === 0) return finish([]);
-    setLoading(true);
-    const { artists: foundArtists, tracks: foundTracks } = await fetchGenreArtistsAndTracks();
-    setGenreTracks(foundTracks);
-    setLoading(false);
-    if (foundArtists.length === 0) return finishUsing(foundTracks);
-    setArtists(foundArtists);
-    setStep(2);
-  }
+  // Debounced artist search — swaps the grid to results while a query is typed.
+  useEffect(() => {
+    if (!query.trim()) { setSearchResults(null); return; }
+    const id = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(query)}`).then(r => r.json())
+        .then(r => setSearchResults(r.artists ?? []))
+        .catch(() => setSearchResults([]));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [query]);
 
-  async function toStep3() {
+  async function toTracks() {
     if (artistIds.length === 0) return finishUsing(genreTracks);
     setLoading(true);
     const results = await Promise.all(
@@ -77,63 +86,68 @@ export default function Onboarding({ profile, onDone }: Props) {
     setLoading(false);
     if (merged.length === 0) return finishUsing(genreTracks);
     setTracks(merged.slice(0, 30));
-    setStep(3);
+    setStep(2);
   }
 
-  const skip = () => step === 1 ? finish([]) : step === 2 ? finishUsing(genreTracks) : finishUsing(tracks);
+  const skip = () => step === 1 ? finishUsing(genreTracks) : finishUsing(tracks);
+  const shownArtists = searchResults ?? artists.slice(0, visibleCount);
+  const hasMore = searchResults === null && visibleCount < artists.length;
 
   return (
     <div style={screenStyle}>
       <button onClick={skip} style={skipBtn}>Lewati</button>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 28 }}>
-        {[1, 2, 3].map(n => (
+        {[1, 2].map(n => (
           <div key={n} style={{ width: n === step ? 20 : 6, height: 6, borderRadius: 3, background: n === step ? '#1db954' : 'rgba(255,255,255,.25)', transition: 'width .2s' }} />
         ))}
       </div>
 
       {step === 1 && (
         <>
-          <h1 style={titleStyle}>Genre favoritmu apa?</h1>
-          <p style={subStyle}>Pilih beberapa, biar beranda kamu lebih pas</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', maxWidth: 480, marginBottom: 28 }}>
-            {GENRES.map(g => (
-              <button key={g} onClick={() => setGenres(gs => toggle(gs, g))}
-                style={chipStyle(genres.includes(g))}>
-                {g}
-              </button>
-            ))}
+          <h1 style={titleStyle}>Pilih 3 artis atau lebih yang kamu suka</h1>
+          <p style={subStyle}>Biar rekomendasi musikmu makin pas</p>
+          <div style={searchBoxStyle}>
+            <svg width="16" height="16" fill="none" stroke="#666" strokeWidth="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari artis"
+              style={{ background: 'transparent', border: 'none', outline: 'none', color: '#000', fontSize: 14, fontFamily: 'inherit', flex: 1 }} />
           </div>
-          <button onClick={toStep2} disabled={loading} style={primaryBtn}>
+          {loading && artists.length === 0 ? (
+            <p style={subStyle}>Memuat artis...</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, maxWidth: 360, width: '100%', marginBottom: 28, maxHeight: 340, overflowY: 'auto' }}>
+              {shownArtists.map(a => (
+                <div key={a.id} onClick={() => setArtistIds(ids => toggle(ids, a.id))}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <img src={a.thumbnail} alt={a.name} style={{
+                    width: 74, height: 74, borderRadius: '50%', objectFit: 'cover',
+                    border: artistIds.includes(a.id) ? '3px solid #1db954' : '3px solid transparent',
+                    opacity: artistIds.includes(a.id) ? 1 : .7,
+                  }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'center', color: '#fff' }}>{a.name}</span>
+                </div>
+              ))}
+              {hasMore && (
+                <div onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <div style={{
+                    width: 74, height: 74, borderRadius: '50%', background: 'rgba(255,255,255,.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                    fontSize: 11, fontWeight: 700, color: '#fff', padding: 4,
+                  }}>
+                    Lainnya buatmu
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={toTracks} disabled={loading} style={primaryBtn}>
             {loading ? 'Memuat...' : 'Lanjut'}
           </button>
         </>
       )}
 
       {step === 2 && (
-        <>
-          <h1 style={titleStyle}>Suka artis yang mana?</h1>
-          <p style={subStyle}>Berdasarkan genre yang kamu pilih</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 560, marginBottom: 28 }}>
-            {artists.map(a => (
-              <div key={a.id} onClick={() => setArtistIds(ids => toggle(ids, a.id))}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 90, cursor: 'pointer' }}>
-                <img src={a.thumbnail} alt={a.name} style={{
-                  width: 74, height: 74, borderRadius: '50%', objectFit: 'cover',
-                  border: artistIds.includes(a.id) ? '3px solid #1db954' : '3px solid transparent',
-                  opacity: artistIds.includes(a.id) ? 1 : .7,
-                }} />
-                <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'center', color: '#fff' }}>{a.name}</span>
-              </div>
-            ))}
-          </div>
-          <button onClick={toStep3} disabled={loading} style={primaryBtn}>
-            {loading ? 'Memuat...' : 'Lanjut'}
-          </button>
-        </>
-      )}
-
-      {step === 3 && (
         <>
           <h1 style={titleStyle}>Lagu apa yang kamu suka?</h1>
           <p style={subStyle}>Dari artis pilihanmu</p>
@@ -176,10 +190,7 @@ const skipBtn: React.CSSProperties = {
   fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
 };
 
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '9px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-    color: '#fff', background: active ? '#1db954' : 'rgba(255,255,255,.08)',
-    border: active ? '2px solid #1db954' : '2px solid transparent',
-  };
-}
+const searchBoxStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 24,
+  padding: '11px 18px', maxWidth: 360, width: '100%', marginBottom: 24,
+};
